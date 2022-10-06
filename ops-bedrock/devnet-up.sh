@@ -77,6 +77,10 @@ if [ ! -f "$DEVNET/done" ]; then
         --outfile.rollup $DEVNET/rollup.json
     touch "$DEVNET/done"
   )
+
+  # TODO move this to L1 genesis generation once `shardingForkBlock` is available in the genesis config
+  L1GENESIS=$(cat $DEVNET/genesis-l1.json)
+  echo "$L1GENESIS" | jq '.config += {shardingForkBlock: 5}' > $DEVNET/genesis-l1.json
 fi
 
 # Bring up L1.
@@ -84,7 +88,7 @@ fi
   cd ops-bedrock
   echo "Bringing up L1..."
   DOCKER_BUILDKIT=1 docker-compose build --progress plain
-  docker-compose up -d l1
+  docker-compose up -d l1-execution l1-beacon l1-validator
   wait_up $L1_URL
 )
 

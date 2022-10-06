@@ -26,9 +26,9 @@ var (
 	bigL1PredeployNamespace = new(big.Int).SetBytes(l1PredeployNamespace.Bytes())
 	// bigCodeNamespace represents the predeploy namespace as a big.Int
 	bigCodeNameSpace = new(big.Int).SetBytes(codeNamespace.Bytes())
-	// implementationSlot represents the EIP 1967 implementation storage slot
+	// ImplementationSlot represents the EIP 1967 implementation storage slot
 	ImplementationSlot = common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
-	// implementationSlot represents the EIP 1967 admin storage slot
+	// AdminSlot represents the EIP 1967 admin storage slot
 	AdminSlot = common.HexToHash("0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103")
 )
 

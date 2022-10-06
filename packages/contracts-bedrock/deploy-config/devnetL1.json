@@ -19,6 +19,7 @@
 
   "l1BlockTime": 15,
   "cliqueSignerAddress": "0xca062b0fd91172d89bcd4bb084ac4e21972cc467",
+  "depositContractAddress": "0x8A04d14125D0FDCDc742F4A05C051De07232EDa4",
 
   "optimismBaseFeeRecipient": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
   "optimismL1FeeRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",

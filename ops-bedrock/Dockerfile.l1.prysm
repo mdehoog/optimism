@@ -1,0 +1,23 @@
+FROM golang:1.18 as builder
+
+WORKDIR /app/prysm
+
+RUN git init
+RUN git remote add origin https://github.com/mdehoog/prysm.git
+RUN git fetch --depth=1 origin 95ad421def54791c115140d3620e1ab0678c050c
+RUN git reset --hard FETCH_HEAD
+
+# The flag below may be needed if blst throws SIGILL, which happens with certain (older) CPUs
+# ENV CGO_CFLAGS="-O -D__BLST_PORTABLE__"
+
+RUN go build -o /build/beacon-node -buildvcs=false ./cmd/beacon-chain
+RUN go build -o /build/validator -buildvcs=false ./cmd/validator
+
+FROM ubuntu:20.04
+RUN apt-get update && apt-get install -y curl jq iproute2
+
+COPY --from=builder /build/beacon-node /usr/local/bin/
+COPY --from=builder /build/validator /usr/local/bin/
+
+WORKDIR /usr/local/bin
+EXPOSE 3500 4000 7500 13000 12000 8080

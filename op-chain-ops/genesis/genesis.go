@@ -128,6 +128,8 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 			Period: config.L1BlockTime,
 			Epoch:  30000,
 		}
+		chainConfig.TerminalTotalDifficulty = big.NewInt(2)
+		chainConfig.TerminalTotalDifficultyPassed = true
 	} else {
 		chainConfig.MergeNetsplitBlock = big.NewInt(0)
 		chainConfig.TerminalTotalDifficulty = big.NewInt(0)

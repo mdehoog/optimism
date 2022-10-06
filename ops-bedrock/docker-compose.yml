@@ -6,20 +6,73 @@ version: '3.4'
 
 volumes:
   l1_data:
+  l1_beacon_data:
   l2_data:
   op_log:
 
 
 services:
-  l1:
+  l1-execution:
     build:
       context: .
-      dockerfile: Dockerfile.l1
+      dockerfile: Dockerfile.l1.geth
     ports:
       - "8545:8545"
     volumes:
       - "l1_data:/db"
       - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
+
+  l1-beacon:
+    depends_on:
+      - l1-execution
+    build:
+      context: .
+      dockerfile: Dockerfile.l1.prysm
+    ports:
+      - "3500:3500"
+      - "4000:4000"
+      - "13000:13000"
+    volumes:
+      - "l1_beacon_data:/chaindata"
+      - type: bind
+        source: ./prysm-chain-config.yml
+        target: /config/prysm-chain-config.yml
+      - type: bind
+        source: ./run_beacon_node.sh
+        target: /usr/local/bin/run_beacon_node.sh
+      - type: bind
+        source: ./prysm-priv-key
+        target: /etc/prysm-priv-key
+    environment:
+      EXECUTION_NODE_URL: http://l1-execution:8545
+      VERBOSITY: info
+      P2P_PRIV_KEY: /etc/prysm-priv-key
+    entrypoint: ["run_beacon_node.sh"]
+
+  l1-validator:
+    depends_on:
+      - l1-beacon
+    build:
+      context: .
+      dockerfile: ./Dockerfile.l1.prysm
+    ports:
+      - "7500:7500"
+    volumes:
+      - type: bind
+        source: ./prysm-chain-config.yml
+        target: /config/prysm-chain-config.yml
+    command: >
+      validator
+      --accept-terms-of-use
+      --beacon-rpc-provider l1-beacon:4000
+      --rpc
+      --grpc-gateway-host 0.0.0.0
+      --grpc-gateway-port 7500
+      --interop-num-validators=4
+      --interop-start-index=0
+      --force-clear-db
+      --chain-config-file=/config/prysm-chain-config.yml
+      --suggested-fee-recipient 0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b
 
   l2:
     build:
@@ -38,14 +91,14 @@ services:
 
   op-node:
     depends_on:
-      - l1
+      - l1-execution
       - l2
     build:
       context: ../
       dockerfile: ./op-node/Dockerfile
     command: >
       op-node
-      --l1=ws://l1:8546
+      --l1=ws://l1-execution:8546
       --l2=ws://l2:8546
       --l2.jwt-secret=/config/test-jwt-secret.txt
       --sequencer.enabled
@@ -64,6 +117,8 @@ services:
       --metrics.addr=0.0.0.0
       --metrics.port=7300
       --pprof.enabled
+      --l1.trustrpc
+# TODO: ^^ remove this --l1.trustrpc flag, once we can properly validate L1 blocks
     ports:
       - "7545:8545"
       - "9003:9003"
@@ -78,7 +133,7 @@ services:
 
   op-proposer:
     depends_on:
-      - l1
+      - l1-execution
       - l2
       - op-node
     build:
@@ -87,7 +142,7 @@ services:
     ports:
       - "6062:6060"
     environment:
-      OP_PROPOSER_L1_ETH_RPC: http://l1:8545
+      OP_PROPOSER_L1_ETH_RPC: http://l1-execution:8545
       OP_PROPOSER_L2_ETH_RPC: http://l2:8545
       OP_PROPOSER_ROLLUP_RPC: http://op-node:8545
       OP_PROPOSER_POLL_INTERVAL: 1s
@@ -102,7 +157,7 @@ services:
 
   op-batcher:
     depends_on:
-      - l1
+      - l1-execution
       - l2
       - op-node
     build:
@@ -111,7 +166,7 @@ services:
     ports:
       - "6061:6060"
     environment:
-      OP_BATCHER_L1_ETH_RPC: http://l1:8545
+      OP_BATCHER_L1_ETH_RPC: http://l1-execution:8545
       OP_BATCHER_L2_ETH_RPC: http://l2:8545
       OP_BATCHER_ROLLUP_RPC: http://op-node:8545
       OP_BATCHER_MIN_L1_TX_SIZE_BYTES: 1
