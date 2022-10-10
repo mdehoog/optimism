@@ -36,7 +36,7 @@ def main():
 		'work',
 		'edit',
 		'-replace',
-		f'github.com/ethereum/go-ethereum@{GETH_VERSION}=github.com/ethereum-optimism/op-geth@{pv}'
+		f'github.com/ethereum/go-ethereum@{GETH_VERSION}=github.com/mdehoog/op-geth@{pv}'
 	], cwd=os.path.join(project), check=True)
 
 
@@ -47,7 +47,7 @@ def update_mod(project):
 		'mod',
 		'edit',
 		'-replace',
-		f'github.com/ethereum/go-ethereum@{GETH_VERSION}=github.com/ethereum-optimism/op-geth@optimism-history'
+		f'github.com/ethereum/go-ethereum@{GETH_VERSION}=github.com/mdehoog/op-geth@eip-4844'
 	], cwd=os.path.join(project), check=True)
 	print('Tidying...')
 	subprocess.run([

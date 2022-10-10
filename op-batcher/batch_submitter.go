@@ -431,7 +431,10 @@ func (l *BatchSubmitter) CraftTx(ctx context.Context, data []byte, nonce uint64)
 	}
 	l.log.Debug("creating tx", "to", rawTx.To, "from", crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey))
 
-	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
+	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, core.IntrinsicGasChainRules{
+		Homestead: true,
+		EIP2028:   true,
+	})
 	if err != nil {
 		return nil, err
 	}
