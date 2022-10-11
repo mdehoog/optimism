@@ -115,6 +115,13 @@ SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $DEVNET/rollup.json | jq -r '.batch_inbox_a
 
   echo "Bringing up stateviz webserver..."
   docker-compose up -d stateviz
+
+  echo "Bringing up L1 block explorer"
+  docker-compose up -d l1-postgres l1-blockscout
+
+  # TODO: fix
+  # echo "Bringing up L2 block explorer"
+  # docker-compose up -d l2-postgres l2-blockscout
 )
 
 echo "Devnet ready."

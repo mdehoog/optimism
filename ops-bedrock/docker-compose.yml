@@ -196,3 +196,69 @@ services:
       - "9090:8080"
     volumes:
       - op_log:/op_log:ro
+
+  l1-blockscout:
+    depends_on:
+      - l1-postgres
+      - l1-execution
+    build:
+      context: .
+      dockerfile: Dockerfile.blockscout
+    command: bash -c "bin/blockscout eval \"Elixir.Explorer.ReleaseTasks.create_and_migrate()\" && bin/blockscout start"
+    ports:
+      - "9091:4000"
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://user:example@l1-postgres:5432/blockscout?ssl=false
+      ECTO_USE_SSL: 'false'
+      COIN: ETH
+      NETWORK: ETH
+      SUBNETWORK: Optimism Devnet L1
+      ETHEREUM_JSONRPC_VARIANT: geth
+      ETHEREUM_JSONRPC_HTTP_URL: http://l1-execution:8545/
+      ETHEREUM_JSONRPC_WS_URL: ws://l1-execution:8546/
+      SECRET_KEY_BASE: KIDI58RP1WTR8VIdWVjMlY5fdZDG37h2Azcc2t5lC+xHQ9C5ZTV8oPno2EofGz0x
+      SUPPORTED_CHAINS: ""
+  l1-postgres:
+    image: 'postgres'
+    environment:
+      POSTGRES_DB: blockscout
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: example
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - ./postgres-initdb:/docker-entrypoint-initdb.d/
+      - ./postgres-certs/:/var/lib/postgresql/certs/
+
+#  l2-blockscout:
+#    depends_on:
+#      - l2-postgres
+#      - l2
+#    build:
+#      context: .
+#      dockerfile: Dockerfile.blockscout
+#    command: bash -c "bin/blockscout eval \"Elixir.Explorer.ReleaseTasks.create_and_migrate()\" && bin/blockscout start"
+#    ports:
+#      - "9092:4000"
+#    environment:
+#      PORT: 4000
+#      DATABASE_URL: postgresql://user:example@l2-postgres:5432/blockscout?ssl=false
+#      ECTO_USE_SSL: 'false'
+#      COIN: ETH
+#      NETWORK: ETH
+#      SUBNETWORK: Optimism Devnet L2
+#      ETHEREUM_JSONRPC_VARIANT: geth
+#      ETHEREUM_JSONRPC_HTTP_URL: http://l2:8545/
+#      ETHEREUM_JSONRPC_WS_URL: ws://l2:8546/
+#      SECRET_KEY_BASE: KIDI58RP1WTR8VIdWVjMlY5fdZDG37h2Azcc2t5lC+xHQ9C5ZTV8oPno2EofGz0x
+#      SUPPORTED_CHAINS: ""
+#  l2-postgres:
+#    image: 'postgres'
+#    environment:
+#      POSTGRES_DB: blockscout
+#      POSTGRES_USER: user
+#      POSTGRES_PASSWORD: example
+#      POSTGRES_HOST_AUTH_METHOD: trust
+#    volumes:
+#      - ./postgres-initdb:/docker-entrypoint-initdb.d/
+#      - ./postgres-certs/:/var/lib/postgresql/certs/
