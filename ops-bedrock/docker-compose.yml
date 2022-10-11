@@ -262,3 +262,32 @@ services:
 #    volumes:
 #      - ./postgres-initdb:/docker-entrypoint-initdb.d/
 #      - ./postgres-certs/:/var/lib/postgresql/certs/
+
+  blobindexer:
+    depends_on:
+      - l1-execution
+      - l1-beacon
+      - mongodb
+    build:
+      context: .
+      dockerfile: Dockerfile.blobindexer
+    environment:
+      MONGODB_URI: mongodb://root:example@mongodb:27017/?authSource=admin
+      MONGODB_DB: blobscan
+  blobscan:
+    depends_on:
+      - mongodb
+      - blobindexer
+    build:
+      context: .
+      dockerfile: Dockerfile.blobscan
+    ports:
+      - "9093:3000"
+    environment:
+      MONGODB_URI: mongodb://root:example@mongodb:27017/?authSource=admin
+      MONGODB_DB: blobscan
+  mongodb:
+    image: 'mongo'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example

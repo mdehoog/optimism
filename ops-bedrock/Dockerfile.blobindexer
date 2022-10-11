@@ -1,0 +1,12 @@
+FROM node:16
+
+RUN mkdir -p /app
+WORKDIR /app
+
+RUN git clone https://github.com/BlossomLabs/blob-indexer.git .
+RUN npm install
+
+RUN sed -i 's/localhost:8545/l1-execution:8545/g' index.js
+RUN sed -i 's/localhost:3500/l1-beacon:3500/g' index.js
+
+ENTRYPOINT ["node", "index.js"]
