@@ -6,7 +6,7 @@ WORKDIR /app/go-ethereum
 
 RUN git init
 RUN git remote add origin https://github.com/mdehoog/go-ethereum.git
-RUN git fetch --depth=1 origin f673a93c561496374ba04f629ea809900812ae68
+RUN git fetch --depth=1 origin 0aa8f1ddceb280666da4435e7bf94fbd6befbce6
 RUN git reset --hard FETCH_HEAD
 
 RUN go build -o build/bin/geth ./cmd/geth

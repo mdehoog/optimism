@@ -54,7 +54,7 @@ services:
       - l1-beacon
     build:
       context: .
-      dockerfile: ./Dockerfile.l1.prysm
+      dockerfile: Dockerfile.l1.prysm
     ports:
       - "7500:7500"
     volumes:
@@ -274,6 +274,8 @@ services:
     environment:
       MONGODB_URI: mongodb://root:example@mongodb:27017/?authSource=admin
       MONGODB_DB: blobscan
+      EXECUTION_NODE_URL: http://l1-execution:8545
+      BEACON_NODE_RPC: http://l1-beacon:3500
   blobscan:
     depends_on:
       - mongodb
@@ -288,6 +290,8 @@ services:
       MONGODB_DB: blobscan
   mongodb:
     image: 'mongo'
+    ports:
+      - "27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: example

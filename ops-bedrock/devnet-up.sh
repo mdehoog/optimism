@@ -122,6 +122,9 @@ SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $DEVNET/rollup.json | jq -r '.batch_inbox_a
   # TODO: fix
   # echo "Bringing up L2 block explorer"
   # docker-compose up -d l2-postgres l2-blockscout
+
+  echo "Bringing up L1 blob explorer"
+  docker-compose up -d mongodb blobindexer blobscan
 )
 
 echo "Devnet ready."

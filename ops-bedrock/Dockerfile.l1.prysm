@@ -3,8 +3,8 @@ FROM golang:1.18 as builder
 WORKDIR /app/prysm
 
 RUN git init
-RUN git remote add origin https://github.com/mdehoog/prysm.git
-RUN git fetch --depth=1 origin 95ad421def54791c115140d3620e1ab0678c050c
+RUN git remote add origin https://github.com/Inphi/prysm.git
+RUN git fetch --depth=1 origin 431ed6bc39e3d471474505bbec7b7486ffe4e183
 RUN git reset --hard FETCH_HEAD
 
 # The flag below may be needed if blst throws SIGILL, which happens with certain (older) CPUs
