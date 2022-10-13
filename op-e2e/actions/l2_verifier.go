@@ -32,8 +32,8 @@ type L2Verifier struct {
 	rollupCfg *rollup.Config
 }
 
-func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng derive.Engine, cfg *rollup.Config) *L2Verifier {
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, eng, &testutils.TestDerivationMetrics{})
+func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, blobs derive.BlobsSidecarFetcher, eng derive.Engine, cfg *rollup.Config) *L2Verifier {
+	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobs, eng, &testutils.TestDerivationMetrics{})
 	pipeline.Reset()
 	return &L2Verifier{
 		log:            log,

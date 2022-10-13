@@ -23,6 +23,11 @@ var (
 		Value:  "http://127.0.0.1:8545",
 		EnvVar: prefixEnvVar("L1_ETH_RPC"),
 	}
+	BeaconAddr = cli.StringFlag{
+		Name:   "beacon",
+		Usage:  "Address of the Beacon HTTP Server to use (blob extension API required)",
+		EnvVar: prefixEnvVar("BEACON_HTTP"),
+	}
 	L2EngineAddr = cli.StringFlag{
 		Name:   "l2",
 		Usage:  "Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)",
@@ -165,6 +170,7 @@ var (
 
 var requiredFlags = []cli.Flag{
 	L1NodeAddr,
+	BeaconAddr,
 	L2EngineAddr,
 	RollupConfig,
 	RPCListenAddr,
@@ -201,6 +207,10 @@ func CheckRequired(ctx *cli.Context) error {
 	l1NodeAddr := ctx.GlobalString(L1NodeAddr.Name)
 	if l1NodeAddr == "" {
 		return fmt.Errorf("flag %s is required", L1NodeAddr.Name)
+	}
+	beaconAddr := ctx.GlobalString(BeaconAddr.Name)
+	if beaconAddr == "" {
+		return fmt.Errorf("flag %s is required", BeaconAddr.Name)
 	}
 	l2EngineAddr := ctx.GlobalString(L2EngineAddr.Name)
 	if l2EngineAddr == "" {

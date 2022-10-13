@@ -72,7 +72,7 @@ type Network interface {
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
-func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
+func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, blobs derive.BlobsSidecarFetcher, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
 	output := &outputImpl{
 		Config: cfg,
 		dl:     l1,
@@ -82,7 +82,7 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, ne
 
 	var state *state
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, func() eth.L1BlockRef { return state.l1Head }, l1)
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, blobs, l2, metrics)
 	state = NewState(driverCfg, log, snapshotLog, cfg, l1, l2, output, derivationPipeline, network, metrics)
 	return &Driver{s: state}
 }

@@ -15,6 +15,8 @@ type Config struct {
 	L1 L1EndpointSetup
 	L2 L2EndpointSetup
 
+	BeaconAddress string
+
 	Driver driver.Config
 
 	Rollup rollup.Config

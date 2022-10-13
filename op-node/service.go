@@ -57,10 +57,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	}
 
 	cfg := &node.Config{
-		L1:     l1Endpoint,
-		L2:     l2Endpoint,
-		Rollup: *rollupConfig,
-		Driver: *driverConfig,
+		L1:            l1Endpoint,
+		BeaconAddress: ctx.GlobalString(flags.BeaconAddr.Name),
+		L2:            l2Endpoint,
+		Rollup:        *rollupConfig,
+		Driver:        *driverConfig,
 		RPC: node.RPCConfig{
 			ListenAddr:  ctx.GlobalString(flags.RPCListenAddr.Name),
 			ListenPort:  ctx.GlobalInt(flags.RPCListenPort.Name),

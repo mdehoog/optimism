@@ -92,11 +92,11 @@ type DerivationPipeline struct {
 }
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
-func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics) *DerivationPipeline {
+func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, blobsFetcher BlobsSidecarFetcher, engine Engine, metrics Metrics) *DerivationPipeline {
 
 	// Pull stages
 	l1Traversal := NewL1Traversal(log, l1Fetcher)
-	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher) // auxiliary stage for L1Retrieval
+	dataSrc := NewBlobdataSource(log, cfg, l1Fetcher, blobsFetcher)
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	bank := NewChannelBank(log, cfg, l1Src, l1Fetcher)
 	chInReader := NewChannelInReader(log, bank)
