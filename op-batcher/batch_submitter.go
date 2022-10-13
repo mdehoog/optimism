@@ -6,6 +6,10 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
+	"github.com/protolambda/ztyp/view"
 	"io"
 	"math/big"
 	_ "net/http/pprof"
@@ -30,7 +34,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -386,7 +389,7 @@ mainLoop:
 				}
 
 				// The transaction was successfully submitted.
-				l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "channel_id", l.ch.ID())
+				l.log.Info("tx successfully published", "tx_hash", receipt.TxHash.String(), "channel_id", l.ch.ID())
 
 				// If `ch.OutputFrame` returned io.EOF we don't need to submit any more frames for this channel.
 				if done {
@@ -421,26 +424,44 @@ func (l *BatchSubmitter) CraftTx(ctx context.Context, data []byte, nonce uint64)
 
 	gasFeeCap := txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
 
-	rawTx := &types.DynamicFeeTx{
-		ChainID:   l.cfg.ChainID,
-		Nonce:     nonce,
-		To:        &l.cfg.BatchInboxAddress,
-		GasTipCap: gasTipCap,
-		GasFeeCap: gasFeeCap,
-		Data:      data,
-	}
-	l.log.Debug("creating tx", "to", rawTx.To, "from", crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey))
-
-	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, core.IntrinsicGasChainRules{
+	// TODO how to calculate gas for blobs?
+	gas, err := core.IntrinsicGas(data, nil, false, core.IntrinsicGasChainRules{
 		Homestead: true,
 		EIP2028:   true,
+		EIP4844:   true,
 	})
 	if err != nil {
 		return nil, err
 	}
-	rawTx.Gas = gas
 
-	return types.SignNewTx(l.cfg.PrivKey, types.LatestSignerForChainID(l.cfg.ChainID), rawTx)
+	blobs := encodeBlobs(data)
+	commitments, versionedHashes, aggregatedProof, err := blobs.ComputeCommitmentsAndAggregatedProof()
+	if err != nil {
+		return nil, err
+	}
+
+	txData := types.SignedBlobTx{
+		Message: types.BlobTxMessage{
+			ChainID:             view.Uint256View(*uint256.NewInt(l.cfg.ChainID.Uint64())),
+			Nonce:               view.Uint64View(nonce),
+			Gas:                 view.Uint64View(gas),
+			GasFeeCap:           view.Uint256View(*uint256.NewInt(gasFeeCap.Uint64())),
+			GasTipCap:           view.Uint256View(*uint256.NewInt(gasTipCap.Uint64())),
+			MaxFeePerDataGas:    view.Uint256View(*uint256.NewInt(3000000000)), // needs to be at least the min fee
+			Value:               view.Uint256View(*uint256.NewInt(0)),
+			To:                  types.AddressOptionalSSZ{Address: (*types.AddressSSZ)(&l.cfg.BatchInboxAddress)},
+			BlobVersionedHashes: versionedHashes,
+		},
+	}
+	wrapData := types.BlobTxWrapData{
+		BlobKzgs:           commitments,
+		Blobs:              blobs,
+		KzgAggregatedProof: aggregatedProof,
+	}
+
+	l.log.Debug("creating tx", "to", l.cfg.BatchInboxAddress, "from", crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey), "data_size", len(data))
+
+	return types.SignNewTx(l.cfg.PrivKey, types.LatestSignerForChainID(l.cfg.ChainID), &txData, types.WithTxWrapData(&wrapData))
 }
 
 // UpdateGasPrice signs an otherwise identical txn to the one provided but with
@@ -460,17 +481,27 @@ func (l *BatchSubmitter) UpdateGasPrice(ctx context.Context, tx *types.Transacti
 
 	gasFeeCap := txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
 
-	rawTx := &types.DynamicFeeTx{
-		ChainID:   l.cfg.ChainID,
-		Nonce:     tx.Nonce(),
-		To:        tx.To(),
-		GasTipCap: gasTipCap,
-		GasFeeCap: gasFeeCap,
-		Gas:       tx.Gas(),
-		Data:      tx.Data(),
+	versionedHashes, commitments, blobs, aggregatedProof := tx.BlobWrapData()
+	txData := types.SignedBlobTx{
+		Message: types.BlobTxMessage{
+			ChainID:             view.Uint256View(*uint256.NewInt(l.cfg.ChainID.Uint64())),
+			Nonce:               view.Uint64View(tx.Nonce()),
+			Gas:                 view.Uint64View(tx.Gas()),
+			GasFeeCap:           view.Uint256View(*uint256.NewInt(gasFeeCap.Uint64())),
+			GasTipCap:           view.Uint256View(*uint256.NewInt(gasTipCap.Uint64())),
+			MaxFeePerDataGas:    view.Uint256View(*uint256.NewInt(tx.MaxFeePerDataGas().Uint64())), // needs to be at least the min fee
+			Value:               view.Uint256View(*uint256.NewInt(tx.Value().Uint64())),
+			To:                  types.AddressOptionalSSZ{Address: (*types.AddressSSZ)(tx.To())},
+			BlobVersionedHashes: versionedHashes,
+		},
+	}
+	wrapData := types.BlobTxWrapData{
+		BlobKzgs:           commitments,
+		Blobs:              blobs,
+		KzgAggregatedProof: aggregatedProof,
 	}
 
-	return types.SignNewTx(l.cfg.PrivKey, types.LatestSignerForChainID(l.cfg.ChainID), rawTx)
+	return types.SignNewTx(l.cfg.PrivKey, types.LatestSignerForChainID(l.cfg.ChainID), &txData, types.WithTxWrapData(&wrapData))
 }
 
 // SendTransaction injects a signed transaction into the pending pool for
@@ -513,4 +544,24 @@ func parseAddress(address string) (common.Address, error) {
 		return common.HexToAddress(address), nil
 	}
 	return common.Address{}, fmt.Errorf("invalid address: %v", address)
+}
+
+func encodeBlobs(data []byte) types.Blobs {
+	blobs := []types.Blob{{}}
+	blobIndex := 0
+	fieldIndex := -1
+	for i := 0; i < len(data); i += 31 {
+		fieldIndex++
+		if fieldIndex == params.FieldElementsPerBlob {
+			blobs = append(blobs, types.Blob{})
+			blobIndex++
+			fieldIndex = 0
+		}
+		max := i + 31
+		if max > len(data) {
+			max = len(data)
+		}
+		copy(blobs[blobIndex][fieldIndex][:], data[i:max])
+	}
+	return blobs
 }
