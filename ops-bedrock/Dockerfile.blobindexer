@@ -3,7 +3,12 @@ FROM node:16
 RUN mkdir -p /app
 WORKDIR /app
 
-RUN git clone https://github.com/mdehoog/blob-indexer.git .
+# switch back to upstream once https://github.com/BlossomLabs/blob-indexer/pull/2 is merged
+RUN git init
+RUN git remote add origin https://github.com/mdehoog/blob-indexer.git
+RUN git fetch --depth=1 origin 044ea9e481e1021486f21702c70f42c3c3c6045f
+RUN git reset --hard FETCH_HEAD
+
 RUN npm install
 
 ENTRYPOINT ["node", "index.js"]
