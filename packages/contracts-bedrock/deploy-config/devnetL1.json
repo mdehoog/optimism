@@ -17,7 +17,7 @@
   "l2OutputOracleOwner": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
   "l2GenesisBlockCoinbase": "0x42000000000000000000000000000000000000f0",
 
-  "l1BlockTime": 15,
+  "l1BlockTime": 12,
   "cliqueSignerAddress": "0xca062b0fd91172d89bcd4bb084ac4e21972cc467",
   "depositContractAddress": "0x8A04d14125D0FDCDc742F4A05C051De07232EDa4",
 
