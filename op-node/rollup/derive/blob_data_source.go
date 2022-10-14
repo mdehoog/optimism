@@ -37,11 +37,12 @@ func (ds *DataSlice) Next(_ context.Context) (eth.Data, error) {
 type BlobdataSource struct {
 	log          log.Logger
 	cfg          *rollup.Config
-	txFetcher    L1TransactionFetcher
+	txFetcher    L1Fetcher
 	blobsFetcher BlobsSidecarFetcher
+	l1Genesis    *eth.L1BlockRef
 }
 
-func NewBlobdataSource(log log.Logger, cfg *rollup.Config, txFetcher L1TransactionFetcher, blobsFetcher BlobsSidecarFetcher) *BlobdataSource {
+func NewBlobdataSource(log log.Logger, cfg *rollup.Config, txFetcher L1Fetcher, blobsFetcher BlobsSidecarFetcher) *BlobdataSource {
 	return &BlobdataSource{log: log, cfg: cfg, txFetcher: txFetcher, blobsFetcher: blobsFetcher}
 }
 
@@ -51,10 +52,17 @@ func (cs *BlobdataSource) OpenData(ctx context.Context, id eth.BlockID) (DataIte
 		return nil, fmt.Errorf("failed to fetch transactions: %w", err)
 	}
 
+	if cs.l1Genesis == nil {
+		ref, err := cs.txFetcher.L1BlockRefByNumber(ctx, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch L1 genesis block: %w", err)
+		}
+		cs.l1Genesis = &ref
+	}
+
 	// Based on the timestamp we check which slot is being used
-	l1GenesisTime := uint64(12434)
 	blockTime := uint64(12)
-	slot := (info.Time() - l1GenesisTime) / blockTime
+	slot := (info.Time() - cs.l1Genesis.Time) / blockTime
 
 	sidecar, err := cs.blobsFetcher.FetchSidecar(ctx, slot)
 	if err != nil {
