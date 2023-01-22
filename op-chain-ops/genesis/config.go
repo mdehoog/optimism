@@ -271,6 +271,50 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	return nil
 }
 
+func (d *DeployConfig) PopulateDeployedAddresses(deployedAddresses map[string]string) error {
+	if d.L1StandardBridgeProxy == (common.Address{}) {
+		address := deployedAddresses["L1StandardBridgeProxy"]
+		if address == "" {
+			return errors.New("L1StandardBridgeProxy address not found")
+		}
+		d.L1StandardBridgeProxy = common.HexToAddress(address)
+	}
+
+	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
+		address := deployedAddresses["L1CrossDomainMessengerProxy"]
+		if address == "" {
+			return errors.New("L1CrossDomainMessengerProxy address not found")
+		}
+		d.L1CrossDomainMessengerProxy = common.HexToAddress(address)
+	}
+
+	if d.L1ERC721BridgeProxy == (common.Address{}) {
+		address := deployedAddresses["L1ERC721BridgeProxy"]
+		if address == "" {
+			return errors.New("L1ERC721BridgeProxy address not found")
+		}
+		d.L1ERC721BridgeProxy = common.HexToAddress(address)
+	}
+
+	if d.SystemConfigProxy == (common.Address{}) {
+		address := deployedAddresses["SystemConfigProxy"]
+		if address == "" {
+			return errors.New("SystemConfigProxy address not found")
+		}
+		d.SystemConfigProxy = common.HexToAddress(address)
+	}
+
+	if d.OptimismPortalProxy == (common.Address{}) {
+		address := deployedAddresses["OptimismPortalProxy"]
+		if address == "" {
+			return errors.New("OptimismPortalProxy address not found")
+		}
+		d.OptimismPortalProxy = common.HexToAddress(address)
+	}
+
+	return nil
+}
+
 // InitDeveloperDeployedAddresses will set the dev addresses on the DeployConfig
 func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
 	d.L1StandardBridgeProxy = predeploys.DevL1StandardBridgeAddr

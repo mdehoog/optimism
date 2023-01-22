@@ -3,7 +3,9 @@ package genesis
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -98,6 +100,10 @@ var Subcommands = cli.Commands{
 				Usage: "Path to deployment directory",
 			},
 			cli.StringFlag{
+				Name:  "deployment-json",
+				Usage: "JSON file containing deployment contract addresses",
+			},
+			cli.StringFlag{
 				Name:  "outfile.l2",
 				Usage: "Path to L2 genesis output file",
 			},
@@ -113,16 +119,35 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			depPath, network := filepath.Split(ctx.String("deployment-dir"))
-			hh, err := hardhat.New(network, nil, []string{depPath})
-			if err != nil {
-				return err
+			deploymentDir := ctx.String("deployment-dir")
+			deploymentJson := ctx.String("deployment-json")
+			if deploymentDir != "" {
+				depPath, network := filepath.Split(deploymentDir)
+				hh, err := hardhat.New(network, nil, []string{depPath})
+				if err != nil {
+					return err
+				}
+
+				// Read the appropriate deployment addresses from disk
+				if err := config.GetDeployedAddresses(hh); err != nil {
+					return err
+				}
+			} else if deploymentJson != "" {
+				jsonFile, err := ioutil.ReadFile(deploymentJson)
+				if err != nil {
+					return err
+				}
+				addresses := make(map[string]string)
+				if err = json.Unmarshal(jsonFile, &addresses); err != nil {
+					return err
+				}
+				if err = config.PopulateDeployedAddresses(addresses); err != nil {
+					return err
+				}
+			} else {
+				return errors.New("missing either deployment-dir or deployment-json flags")
 			}
 
-			// Read the appropriate deployment addresses from disk
-			if err := config.GetDeployedAddresses(hh); err != nil {
-				return err
-			}
 			// Sanity check the config
 			if err := config.Check(); err != nil {
 				return err
