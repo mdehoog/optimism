@@ -1,6 +1,7 @@
 package flags
 
 import (
+	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/urfave/cli"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -81,6 +82,11 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "RESUBMISSION_TIMEOUT"),
 	}
+	StoppedFlag = cli.BoolFlag{
+		Name:   "stopped",
+		Usage:  "Initialize the batcher in a stopped state. The batcher can be started using the admin_startBatcher RPC",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "STOPPED"),
+	}
 	MnemonicFlag = cli.StringFlag{
 		Name: "mnemonic",
 		Usage: "The mnemonic used to derive the wallets for either the " +
@@ -121,6 +127,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	StoppedFlag,
 	MnemonicFlag,
 	SequencerHDPathFlag,
 	PrivateKeyFlag,
@@ -133,6 +140,7 @@ func init() {
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, opsigner.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, rpc.CLIFlags(envVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }

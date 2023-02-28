@@ -34,6 +34,9 @@ type BatchSubmitter struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	mutex   sync.Mutex
+	running bool
+
 	// lastStoredBlock is the last block loaded into `state`. If it is empty it should be set to the l2 safe head.
 	lastStoredBlock eth.BlockID
 
@@ -154,32 +157,63 @@ func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerF
 		PollInterval:      cfg.PollInterval,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
 		addr:  addr,
 		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, addr, l1Client, signer(chainID)),
-		done:  make(chan struct{}),
 		log:   l,
 		state: NewChannelManager(l, cfg.ChannelTimeout),
-		// TODO: this context only exists because the event loop doesn't reach done
-		// if the tx manager is blocking forever due to e.g. insufficient balance.
-		ctx:    ctx,
-		cancel: cancel,
 	}, nil
 }
 
 func (l *BatchSubmitter) Start() error {
+	l.log.Info("Starting Batch Submitter")
+
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	if l.running {
+		return errors.New("batcher is already running")
+	}
+	l.running = true
+
+	l.done = make(chan struct{})
+	// TODO: this context only exists because the event loop doesn't reach done
+	// if the tx manager is blocking forever due to e.g. insufficient balance.
+	l.ctx, l.cancel = context.WithCancel(context.Background())
+	l.state.Clear()
+	l.lastStoredBlock = eth.BlockID{}
+
 	l.wg.Add(1)
 	go l.loop()
+
+	l.log.Info("Batch Submitter started")
+
 	return nil
 }
 
-func (l *BatchSubmitter) Stop() {
+func (l *BatchSubmitter) StopIfRunning() {
+	_ = l.Stop()
+}
+
+func (l *BatchSubmitter) Stop() error {
+	l.log.Info("Stopping Batch Submitter")
+
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	if !l.running {
+		return errors.New("batcher is not running")
+	}
+	l.running = false
+
 	l.cancel()
 	close(l.done)
 	l.wg.Wait()
+
+	l.log.Info("Batch Submitter stopped")
+
+	return nil
 }
 
 // loadBlocksIntoState loads all blocks since the previous stored block

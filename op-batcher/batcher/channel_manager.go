@@ -79,6 +79,7 @@ func (s *channelManager) Clear() {
 	s.log.Trace("clearing channel manager state")
 	s.blocks = s.blocks[:0]
 	s.datas = s.datas[:0]
+	s.clearPendingChannel()
 }
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data

@@ -6,10 +6,10 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 )
 
@@ -68,9 +68,11 @@ type Config struct {
 	// transactions.
 	SequencerBatchInboxAddress string
 
-	RPCConfig oprpc.CLIConfig
+	RPCConfig rpc.CLIConfig
 
 	/* Optional Params */
+
+	Stopped bool
 
 	LogConfig oplog.CLIConfig
 
@@ -115,11 +117,12 @@ func NewConfig(ctx *cli.Context) Config {
 		NumConfirmations:           ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
 		SafeAbortNonceTooLowCount:  ctx.GlobalUint64(flags.SafeAbortNonceTooLowCountFlag.Name),
 		ResubmissionTimeout:        ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
+		Stopped:                    ctx.GlobalBool(flags.StoppedFlag.Name),
 		Mnemonic:                   ctx.GlobalString(flags.MnemonicFlag.Name),
 		SequencerHDPath:            ctx.GlobalString(flags.SequencerHDPathFlag.Name),
 		PrivateKey:                 ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		SequencerBatchInboxAddress: ctx.GlobalString(flags.SequencerBatchInboxAddressFlag.Name),
-		RPCConfig:                  oprpc.ReadCLIConfig(ctx),
+		RPCConfig:                  rpc.ReadCLIConfig(ctx),
 		LogConfig:                  oplog.ReadCLIConfig(ctx),
 		MetricsConfig:              opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                oppprof.ReadCLIConfig(ctx),

@@ -10,6 +10,10 @@ import (
 	"syscall"
 	"time"
 
+	gethrpc "github.com/ethereum/go-ethereum/rpc"
+	"github.com/urfave/cli"
+
+	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -17,7 +21,6 @@ import (
 	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/urfave/cli"
 )
 
 const (
@@ -68,17 +71,16 @@ func Main(version string) func(cliCtx *cli.Context) error {
 			batchSubmitter = bs
 		}
 
-		l.Info("Starting Batch Submitter")
-
-		if err := batchSubmitter.Start(); err != nil {
-			l.Error("Unable to start Batch Submitter", "error", err)
-			return err
+		if !cfg.Stopped {
+			if err := batchSubmitter.Start(); err != nil {
+				l.Error("Unable to start Batch Submitter", "error", err)
+				return err
+			}
 		}
-		defer batchSubmitter.Stop()
+		defer batchSubmitter.StopIfRunning()
 
 		ctx, cancel := context.WithCancel(context.Background())
 
-		l.Info("Batch Submitter started")
 		pprofConfig := cfg.PprofConfig
 		if pprofConfig.Enabled {
 			l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
@@ -107,6 +109,13 @@ func Main(version string) func(cliCtx *cli.Context) error {
 			rpcCfg.ListenPort,
 			version,
 		)
+		if rpcCfg.EnableAdmin {
+			server.AddAPI(gethrpc.API{
+				Namespace: "admin",
+				Service:   rpc.NewAdminAPI(batchSubmitter),
+			})
+			l.Info("Admin RPC enabled")
+		}
 		if err := server.Start(); err != nil {
 			cancel()
 			return fmt.Errorf("error starting RPC server: %w", err)
