@@ -20,6 +20,7 @@ type TransactionWithMeta struct {
 	TxIndex     uint64             `json:"tx_index"`
 	InboxAddr   common.Address     `json:"inbox_address"`
 	BlockNumber uint64             `json:"block_number"`
+	BlockTime   uint64             `json:"block_time"`
 	BlockHash   common.Hash        `json:"block_hash"`
 	ChainId     uint64             `json:"chain_id"`
 	Sender      common.Address     `json:"sender"`
@@ -99,6 +100,7 @@ func fetchBatchesPerBlock(client *ethclient.Client, number *big.Int, signer type
 				ValidSender: validSender,
 				TxIndex:     uint64(i),
 				BlockNumber: block.NumberU64(),
+				BlockTime:   block.Time(),
 				BlockHash:   block.Hash(),
 				ChainId:     config.ChainID.Uint64(),
 				InboxAddr:   config.BatchInbox,
