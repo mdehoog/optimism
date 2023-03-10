@@ -273,3 +273,13 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 
 	return nil
 }
+
+// CloseCurrentChannel closes the current pending channel, if one exists.
+// This ensures that no new frames will be produced, but there still may be any
+// number of pending frames produced before this call.
+func (s *channelManager) CloseCurrentChannel() error {
+	if s.pendingChannel == nil {
+		return nil
+	}
+	return s.pendingChannel.Close()
+}
