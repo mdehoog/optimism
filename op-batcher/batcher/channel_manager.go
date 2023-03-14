@@ -38,6 +38,9 @@ type channelManager struct {
 	pendingTransactions map[txID]txData
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
 	confirmedTransactions map[txID]eth.BlockID
+
+	// if set to true, prevents production of any new channel frames
+	closed bool
 }
 
 func NewChannelManager(log log.Logger, cfg ChannelConfig) *channelManager {
@@ -70,6 +73,14 @@ func (s *channelManager) TxFailed(id txID) {
 		delete(s.pendingTransactions, id)
 	} else {
 		s.log.Warn("unknown transaction marked as failed", "id", id)
+	}
+
+	// If this channel has no submitted transactions, put the pending blocks back into the
+	// local saved blocks and reset this state so it can try to build a new channel.
+	if len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 {
+		s.log.Info("Channel has no submitted transactions", "chID", s.pendingChannel.ID())
+		s.blocks = append(s.pendingChannel.Blocks(), s.blocks...)
+		s.clearPendingChannel()
 	}
 }
 
@@ -174,6 +185,11 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		return s.nextTxData()
 	}
 
+	// Avoid producing new frames if the channel has been explicitly closed.
+	if s.closed {
+		return txData{}, io.EOF
+	}
+
 	// No pending frame, so we have to add new blocks to the channel
 
 	// If we have no saved blocks, we will not be able to create valid frames
@@ -274,10 +290,12 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 	return nil
 }
 
-// CloseCurrentChannel closes the current pending channel, if one exists.
-// This ensures that no new frames will be produced, but there still may be any
-// number of pending frames produced before this call.
-func (s *channelManager) CloseCurrentChannel() error {
+// Close closes the current pending channel, if one exists, and prevents the
+// creation of any new channels.
+// This ensures that no new frames will be produced, but there may be any number
+// of pending frames produced before this call which should still be published.
+func (s *channelManager) Close() error {
+	s.closed = true
 	if s.pendingChannel == nil {
 		return nil
 	}
