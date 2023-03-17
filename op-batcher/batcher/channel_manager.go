@@ -58,6 +58,7 @@ func (s *channelManager) Clear() {
 	s.log.Trace("clearing channel manager state")
 	s.blocks = s.blocks[:0]
 	s.tip = common.Hash{}
+	s.closed = false
 	s.clearPendingChannel()
 }
 
