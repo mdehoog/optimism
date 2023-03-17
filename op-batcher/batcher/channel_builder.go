@@ -341,9 +341,10 @@ func (c *channelBuilder) outputFrame() error {
 // Close immediately marks the channel as full with an ErrTerminated
 // if the channel is not already full, then outputs any remaining frames.
 func (c *channelBuilder) Close() error {
-	if !c.IsFull() {
-		c.setFullErr(ErrTerminated)
+	if c.IsFull() {
+		return nil
 	}
+	c.setFullErr(ErrTerminated)
 	return c.closeAndOutputAllFrames()
 }
 
