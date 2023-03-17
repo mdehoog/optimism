@@ -26,8 +26,10 @@ type BatchSubmitter struct {
 	wg    sync.WaitGroup
 	done  chan struct{}
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	loadCtx    context.Context
+	cancelLoad context.CancelFunc
+	txCtx      context.Context
+	cancelTx   context.CancelFunc
 
 	mutex   sync.Mutex
 	running bool
@@ -135,7 +137,8 @@ func (l *BatchSubmitter) Start() error {
 	l.running = true
 
 	l.done = make(chan struct{})
-	l.ctx, l.cancel = context.WithCancel(context.Background())
+	l.loadCtx, l.cancelLoad = context.WithCancel(context.Background())
+	l.txCtx, l.cancelTx = context.WithCancel(context.Background())
 	l.state.Clear()
 	l.lastStoredBlock = eth.BlockID{}
 
@@ -148,10 +151,10 @@ func (l *BatchSubmitter) Start() error {
 }
 
 func (l *BatchSubmitter) StopIfRunning() {
-	_ = l.Stop()
+	_ = l.Stop(context.Background())
 }
 
-func (l *BatchSubmitter) Stop() error {
+func (l *BatchSubmitter) Stop(ctx context.Context) error {
 	l.log.Info("Stopping Batch Submitter")
 
 	l.mutex.Lock()
@@ -162,7 +165,16 @@ func (l *BatchSubmitter) Stop() error {
 	}
 	l.running = false
 
-	l.cancel()
+	// go routine will call cancelTx() if the passed in ctx is ever Done
+	cancelTx := l.cancelTx
+	wrapped, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		<-wrapped.Done()
+		cancelTx()
+	}()
+
+	l.cancelLoad()
 	close(l.done)
 	l.wg.Wait()
 
@@ -262,17 +274,22 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 func (l *BatchSubmitter) loop() {
 	defer l.wg.Done()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	ticker := time.NewTicker(l.PollInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			l.loadBlocksIntoState(l.ctx)
-			l.publishStateToL1(ctx)
+			l.loadBlocksIntoState(l.loadCtx)
+			l.publishStateToL1(l.txCtx)
 		case <-l.done:
+			// Attempt to gracefully terminate the current channel, ensuring that no new frames will be
+			// produced. Any remaining frames must still be published to the L1 to prevent stalling.
+			err := l.state.Close()
+			if err != nil {
+				l.log.Error("Failed to close the state", "error", err)
+			} else {
+				l.publishStateToL1(l.txCtx)
+			}
 			return
 		}
 	}
@@ -304,11 +321,11 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
 			l.recordConfirmedTx(txdata.ID(), receipt)
 		}
 
-		// Attempt to gracefully terminate the current channel, ensuring that no new frames will be
-		// produced. Any remaining frames must still be published to the L1 to prevent stalling.
 		select {
+		case <-ctx.Done():
+			break
 		case <-l.done:
-			l.state.Close()
+			break
 		default:
 		}
 	}
