@@ -593,6 +593,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		L2EthRpc:           sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:          sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		MaxChannelDuration: 1,
+		MaxTxPerBlock:      1,
 		MaxL1TxSize:        120_000,
 		TargetL1TxSize:     100_000,
 		TargetNumFrames:    1,

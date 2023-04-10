@@ -28,6 +28,7 @@ type Config struct {
 
 	NetworkTimeout time.Duration
 	PollInterval   time.Duration
+	MaxTxPerBlock  uint64
 
 	// RollupConfig is queried at startup
 	Rollup *rollup.Config
@@ -75,6 +76,9 @@ type CLIConfig struct {
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
 	PollInterval time.Duration
+
+	// MaxTxPerBlock is the maximum number of batcher transactions to submit in single L1 block.
+	MaxTxPerBlock uint64
 
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
 	MaxL1TxSize uint64
@@ -128,6 +132,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		PollInterval:    ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 
 		/* Optional Flags */
+		MaxTxPerBlock:      ctx.GlobalUint64(flags.MaxTxPerBlockFlag.Name),
 		MaxChannelDuration: ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:        ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
 		TargetL1TxSize:     ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),

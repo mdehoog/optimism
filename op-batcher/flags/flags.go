@@ -51,6 +51,12 @@ var (
 	}
 
 	// Optional flags
+	MaxTxPerBlockFlag = cli.Uint64Flag{
+		Name:   "max-tx-per-block",
+		Usage:  "The maxiumum number of transactions to submit per L1 block.",
+		Value:  1,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "MAX_TX_PER_BLOCK"),
+	}
 	MaxChannelDurationFlag = cli.Uint64Flag{
 		Name:   "max-channel-duration",
 		Usage:  "The maximum duration of L1-blocks to keep a channel open. 0 to disable.",
@@ -99,6 +105,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	MaxTxPerBlockFlag,
 	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
 	TargetL1TxSizeBytesFlag,

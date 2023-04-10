@@ -79,6 +79,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		L2Client:       l2Client,
 		RollupNode:     rollupClient,
 		PollInterval:   cfg.PollInterval,
+		MaxTxPerBlock:  cfg.MaxTxPerBlock,
 		NetworkTimeout: cfg.TxMgrConfig.NetworkTimeout,
 		TxManager:      txManager,
 		Rollup:         rcfg,
@@ -326,19 +327,36 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
 		l.recordL1Tip(l1tip)
 
 		// Collect next transaction data
-		txdata, err := l.state.TxData(l1tip.ID())
-		if err == io.EOF {
+		var txdatas []txData
+		for i := uint64(0); i < l.MaxTxPerBlock; i++ {
+			txdata, err := l.state.TxData(l1tip.ID())
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				l.log.Error("unable to get tx data", "err", err)
+				break
+			}
+			txdatas = append(txdatas, txdata)
+		}
+		if len(txdatas) == 0 {
 			l.log.Trace("no transaction data available")
 			break
-		} else if err != nil {
-			l.log.Error("unable to get tx data", "err", err)
-			break
 		}
+
 		// Record TX Status
-		if receipt, err := l.sendTransaction(ctx, txdata.Bytes()); err != nil {
-			l.recordFailedTx(txdata.ID(), err)
-		} else {
-			l.recordConfirmedTx(txdata.ID(), receipt)
+		receipts, err := l.sendTransactions(ctx, txdatas)
+		if err == nil {
+			err = errors.New("nil receipt")
+		}
+		for i, txdata := range txdatas {
+			receipt := receipts[i]
+			if receipt != nil {
+				l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "data_size", len(txdata.Bytes()))
+				l.recordConfirmedTx(txdata.ID(), receipt)
+			} else {
+				l.log.Warn("unable to publish tx", "err", err, "data_size", len(txdata.Bytes()))
+				l.recordFailedTx(txdata.ID(), err)
+			}
 		}
 	}
 }
@@ -346,25 +364,23 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
 // sendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
-func (l *BatchSubmitter) sendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
-	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
-	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+func (l *BatchSubmitter) sendTransactions(ctx context.Context, datas []txData) ([]*types.Receipt, error) {
+	var candidates []txmgr.TxCandidate
+	for _, data := range datas {
+		// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
+		intrinsicGas, err := core.IntrinsicGas(data.Bytes(), nil, false, true, true, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+		}
+		candidates = append(candidates, txmgr.TxCandidate{
+			To:       &l.Rollup.BatchInboxAddress,
+			TxData:   data.Bytes(),
+			GasLimit: intrinsicGas,
+		})
 	}
 
 	// Send the transaction through the txmgr
-	if receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
-		To:       &l.Rollup.BatchInboxAddress,
-		TxData:   data,
-		GasLimit: intrinsicGas,
-	}); err != nil {
-		l.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
-		return nil, err
-	} else {
-		l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "data_size", len(data))
-		return receipt, nil
-	}
+	return l.txMgr.SendMulti(ctx, candidates)
 }
 
 func (l *BatchSubmitter) recordL1Tip(l1tip eth.L1BlockRef) {

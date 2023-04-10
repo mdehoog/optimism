@@ -39,7 +39,13 @@ type TxManager interface {
 	// may be included on L1 even if the context is cancelled.
 	//
 	// NOTE: Send should be called by AT MOST one caller at a time.
-	Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error)
+	Send(ctx context.Context, candidates TxCandidate) (*types.Receipt, error)
+
+	// SendMulti is used to create & send a set of transacations. The implementation
+	// is the same as Send, except it returns a slice of transaction receipts, in the
+	// same order as the transactions passed in. Note: individual receipts in the
+	// receipts slice can be nil, if an individual transaction failed to send.
+	SendMulti(ctx context.Context, candidates []TxCandidate) ([]*types.Receipt, error)
 
 	// From returns the sending address associated with the instance of the transaction manager.
 	// It is static for a single instance of a TxManager.
@@ -128,24 +134,29 @@ type TxCandidate struct {
 //
 // NOTE: Send should be called by AT MOST one caller at a time.
 func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error) {
+	receipts, err := m.SendMulti(ctx, []TxCandidate{candidate})
+	return receipts[0], err
+}
+
+func (m *SimpleTxManager) SendMulti(ctx context.Context, candidates []TxCandidate) ([]*types.Receipt, error) {
 	if m.cfg.TxSendTimeout != 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, m.cfg.TxSendTimeout)
 		defer cancel()
 	}
-	tx, err := m.craftTx(ctx, candidate)
+	txs, err := m.craftTxs(ctx, candidates)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create the tx: %w", err)
+		return nil, fmt.Errorf("failed to create the txs: %w", err)
 	}
-	return m.send(ctx, tx)
+	return m.send(ctx, txs)
 }
 
-// craftTx creates the signed transaction
+// craftTx creates the signed transaction(s)
 // It queries L1 for the current fee market conditions as well as for the nonce.
-// NOTE: This method SHOULD NOT publish the resulting transaction.
-// NOTE: If the [TxCandidate.GasLimit] is non-zero, it will be used as the transaction's gas.
+// NOTE: This method SHOULD NOT publish the resulting transaction(s).
+// NOTE: If the [TxCandidate.GasLimit] is non-zero, it will be used as the transactions' gas.
 // NOTE: Otherwise, the [SimpleTxManager] will query the specified backend for an estimate.
-func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
+func (m *SimpleTxManager) craftTxs(ctx context.Context, candidates []TxCandidate) ([]*types.Transaction, error) {
 	gasTipCap, basefee, err := m.suggestGasPriceCaps(ctx)
 	if err != nil {
 		m.metr.RPCError()
@@ -163,43 +174,81 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	}
 	m.metr.RecordNonce(nonce)
 
-	rawTx := &types.DynamicFeeTx{
-		ChainID:   m.chainID,
-		Nonce:     nonce,
-		To:        candidate.To,
-		GasTipCap: gasTipCap,
-		GasFeeCap: gasFeeCap,
-		Data:      candidate.TxData,
-	}
-
-	m.l.Info("creating tx", "to", rawTx.To, "from", m.cfg.From)
-
-	// If the gas limit is set, we can use that as the gas
-	if candidate.GasLimit != 0 {
-		rawTx.Gas = candidate.GasLimit
-	} else {
-		// Calculate the intrinsic gas for the transaction
-		gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
-			From:      m.cfg.From,
+	var txs []*types.Transaction
+	for i, candidate := range candidates {
+		// TODO pararellize
+		rawTx := &types.DynamicFeeTx{
+			ChainID:   m.chainID,
+			Nonce:     nonce + uint64(i),
 			To:        candidate.To,
-			GasFeeCap: gasFeeCap,
 			GasTipCap: gasTipCap,
-			Data:      rawTx.Data,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to estimate gas: %w", err)
+			GasFeeCap: gasFeeCap,
+			Data:      candidate.TxData,
 		}
-		rawTx.Gas = gas
-	}
 
-	ctx, cancel = context.WithTimeout(ctx, m.cfg.NetworkTimeout)
-	defer cancel()
-	return m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
+		m.l.Info("creating tx", "to", rawTx.To, "from", m.cfg.From)
+
+		// If the gas limit is set, we can use that as the gas
+		if candidate.GasLimit != 0 {
+			rawTx.Gas = candidate.GasLimit
+		} else {
+			// Calculate the intrinsic gas for the transaction
+			gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
+				From:      m.cfg.From,
+				To:        candidate.To,
+				GasFeeCap: gasFeeCap,
+				GasTipCap: gasTipCap,
+				Data:      rawTx.Data,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to estimate gas: %w", err)
+			}
+			rawTx.Gas = gas
+		}
+
+		ctx, cancel = context.WithTimeout(ctx, m.cfg.NetworkTimeout)
+		tx, err := m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
+		cancel()
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, tx)
+	}
+	return txs, nil
 }
 
-// send submits the same transaction several times with increasing gas prices as necessary.
-// It waits for the transaction to be confirmed on chain.
-func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error) {
+// sendTx submits the same transaction(s) several times with increasing gas prices as necessary.
+// It waits for the transaction(s) to be confirmed on chain.
+func (m *SimpleTxManager) send(ctx context.Context, txs []*types.Transaction) ([]*types.Receipt, error) {
+	var wg sync.WaitGroup
+
+	receipts := make([]*types.Receipt, len(txs))
+	for i, tx := range txs {
+		i := i
+		tx := tx
+		wg.Add(1)
+		go func() {
+			receipts[i] = m.sendTx(ctx, tx)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
+	err := ctx.Err()
+	if err == nil {
+		// if any receipts are non-nil, don't return an error
+		for _, receipt := range receipts {
+			if receipt != nil {
+				return receipts, nil
+			}
+		}
+		// otherwise assume that the SendState aborted all the sends
+		err = errors.New("aborted transaction sending")
+	}
+	return receipts, err
+}
+
+func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) *types.Receipt {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	ctx, cancel := context.WithCancel(ctx)
@@ -230,7 +279,7 @@ func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*typ
 			// If we see lots of unrecoverable errors (and no pending transactions) abort sending the transaction.
 			if sendState.ShouldAbortImmediately() {
 				m.l.Warn("Aborting transaction submission")
-				return nil, errors.New("aborted transaction sending")
+				return nil
 			}
 			// Increase the gas price & submit the new transaction
 			tx = m.increaseGasPrice(ctx, tx)
@@ -239,12 +288,12 @@ func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*typ
 			go sendTxAsync(tx)
 
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil
 
 		case receipt := <-receiptChan:
 			m.metr.RecordGasBumpCount(bumpCounter)
 			m.metr.TxConfirmed(receipt)
-			return receipt, nil
+			return receipt
 		}
 	}
 }

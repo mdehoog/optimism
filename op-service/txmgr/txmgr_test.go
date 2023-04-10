@@ -277,14 +277,15 @@ func TestTxMgrConfirmAtMinGasPrice(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	receipt, err := h.mgr.send(ctx, tx)
+	receipts, err := h.mgr.send(ctx, []*types.Transaction{tx})
+	receipt := receipts[0]
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
 }
 
 // TestTxMgrNeverConfirmCancel asserts that a Send can be canceled even if no
-// transaction is mined. This is done to ensure the the tx mgr can properly
+// transaction is mined. This is done to ensure the tx mgr can properly
 // abort on shutdown, even if a txn is in the process of being published.
 func TestTxMgrNeverConfirmCancel(t *testing.T) {
 	t.Parallel()
@@ -305,7 +306,8 @@ func TestTxMgrNeverConfirmCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	receipt, err := h.mgr.send(ctx, tx)
+	receipts, err := h.mgr.send(ctx, []*types.Transaction{tx})
+	receipt := receipts[0]
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
 }
@@ -334,7 +336,8 @@ func TestTxMgrConfirmsAtHigherGasPrice(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	receipt, err := h.mgr.send(ctx, tx)
+	receipts, err := h.mgr.send(ctx, []*types.Transaction{tx})
+	receipt := receipts[0]
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
@@ -365,7 +368,8 @@ func TestTxMgrBlocksOnFailingRpcCalls(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	receipt, err := h.mgr.send(ctx, tx)
+	receipts, err := h.mgr.send(ctx, []*types.Transaction{tx})
+	receipt := receipts[0]
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
 }
@@ -378,7 +382,8 @@ func TestTxMgr_CraftTx(t *testing.T) {
 
 	// Craft the transaction.
 	gasTipCap, gasFeeCap := h.gasPricer.feesForEpoch(h.gasPricer.epoch + 1)
-	tx, err := h.mgr.craftTx(context.Background(), candidate)
+	txs, err := h.mgr.craftTxs(context.Background(), []TxCandidate{candidate})
+	tx := txs[0]
 	require.Nil(t, err)
 	require.NotNil(t, tx)
 
@@ -407,7 +412,8 @@ func TestTxMgr_EstimateGas(t *testing.T) {
 	gasEstimate := h.gasPricer.baseBaseFee.Uint64()
 
 	// Craft the transaction.
-	tx, err := h.mgr.craftTx(context.Background(), candidate)
+	txs, err := h.mgr.craftTxs(context.Background(), []TxCandidate{candidate})
+	tx := txs[0]
 	require.Nil(t, err)
 	require.NotNil(t, tx)
 
@@ -443,7 +449,8 @@ func TestTxMgrOnlyOnePublicationSucceeds(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	receipt, err := h.mgr.send(ctx, tx)
+	receipts, err := h.mgr.send(ctx, []*types.Transaction{tx})
+	receipt := receipts[0]
 	require.Nil(t, err)
 
 	require.NotNil(t, receipt)
@@ -478,7 +485,8 @@ func TestTxMgrConfirmsMinGasPriceAfterBumping(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	receipt, err := h.mgr.send(ctx, tx)
+	receipts, err := h.mgr.send(ctx, []*types.Transaction{tx})
+	receipt := receipts[0]
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
@@ -523,7 +531,8 @@ func TestTxMgrDoesntAbortNonceTooLowAfterMiningTx(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	receipt, err := h.mgr.send(ctx, tx)
+	receipts, err := h.mgr.send(ctx, []*types.Transaction{tx})
+	receipt := receipts[0]
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)

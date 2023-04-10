@@ -47,6 +47,9 @@ func (f fakeTxMgr) From() common.Address {
 func (f fakeTxMgr) Send(_ context.Context, _ txmgr.TxCandidate) (*types.Receipt, error) {
 	panic("unimplemented")
 }
+func (f fakeTxMgr) SendMulti(_ context.Context, _ []txmgr.TxCandidate) ([]*types.Receipt, error) {
+	panic("unimplemented")
+}
 
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
 
