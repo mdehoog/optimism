@@ -34,6 +34,7 @@ type Metricer interface {
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
 
+	RecordPendingTx(pending uint64)
 	RecordBatchTxSubmitted()
 	RecordBatchTxSuccess()
 	RecordBatchTxFailed()
@@ -65,6 +66,7 @@ type Metrics struct {
 	ChannelNumFrames    prometheus.Gauge
 	ChannelComprRatio   prometheus.Histogram
 
+	PendingTxs   prometheus.Gauge
 	BatcherTxEvs opmetrics.EventVec
 }
 
@@ -143,6 +145,12 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "channel_compr_ratio",
 			Help:      "Compression ratios of closed channel.",
 			Buckets:   append([]float64{0.1, 0.2}, prometheus.LinearBuckets(0.3, 0.05, 14)...),
+		}),
+
+		PendingTxs: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "pending_txs",
+			Help:      "Number of transactions pending receipts.",
 		}),
 
 		BatcherTxEvs: opmetrics.NewEventVec(factory, ns, "batcher_tx", "BatcherTx", []string{"stage"}),
@@ -240,6 +248,10 @@ func (m *Metrics) RecordChannelFullySubmitted(id derive.ChannelID) {
 
 func (m *Metrics) RecordChannelTimedOut(id derive.ChannelID) {
 	m.ChannelEvs.Record(StageTimedOut)
+}
+
+func (m *Metrics) RecordPendingTx(pending uint64) {
+	m.PendingTxs.Set(float64(pending))
 }
 
 func (m *Metrics) RecordBatchTxSubmitted() {
