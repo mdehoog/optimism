@@ -8,7 +8,6 @@ import (
 	"math/big"
 	_ "net/http/pprof"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
@@ -41,9 +40,6 @@ type BatchSubmitter struct {
 	lastL1Tip       eth.L1BlockRef
 
 	state *channelManager
-
-	txWg       sync.WaitGroup
-	pendingTxs atomic.Uint64
 }
 
 // NewBatchSubmitterFromCLIConfig initializes the BatchSubmitter, gathering any resources
@@ -309,22 +305,26 @@ func (l *BatchSubmitter) loop() {
 		}
 	}
 
+	runner := NewRunner(l.MaxPendingTransactions, func() (func(), error) {
+		return l.publishStateToL1(l.killCtx, receiptsCh)
+	}, l.metr.RecordPendingTx)
+
 	for {
 		select {
 		case <-loadTicker.C:
 			l.loadBlocksIntoState(l.shutdownCtx)
 		case <-publishTicker.C:
-			_ = l.publishStateToL1(l.killCtx, receiptsCh)
+			_ = runner.Try()
 		case r := <-receiptsCh:
 			receiptHandler(r)
 		case <-l.shutdownCtx.Done():
-			l.drainState(receiptsCh, receiptHandler)
+			l.drainState(receiptsCh, receiptHandler, runner)
 			return
 		}
 	}
 }
 
-func (l *BatchSubmitter) drainState(receiptsCh chan txReceipt, receiptHandler func(res txReceipt)) {
+func (l *BatchSubmitter) drainState(receiptsCh chan txReceipt, receiptHandler func(res txReceipt), runner *Runner) {
 	err := l.state.Close()
 	if err != nil {
 		l.log.Error("error closing the channel manager", "err", err)
@@ -336,7 +336,7 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txReceipt, receiptHandler fu
 			case <-l.killCtx.Done():
 				return
 			default:
-				err := l.publishStateToL1(l.killCtx, receiptsCh)
+				err := runner.Wait()
 				if err != nil {
 					if err != io.EOF {
 						l.log.Error("error while publishing state on shutdown", "err", err)
@@ -350,7 +350,7 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txReceipt, receiptHandler fu
 	txDone := make(chan struct{})
 	go func() {
 		// wait for all transactions to complete
-		l.txWg.Wait()
+		runner.Close()
 		close(txDone)
 	}()
 	// handle the remaining receipts
@@ -369,17 +369,11 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txReceipt, receiptHandler fu
 
 // publishStateToL1 pulls the block data loaded into `state` and
 // submits the associated data to the L1 in the form of channel frames.
-func (l *BatchSubmitter) publishStateToL1(ctx context.Context, receiptsCh chan txReceipt) error {
-	pending := l.pendingTxs.Load()
-	if l.MaxPendingTransactions > 0 && pending >= l.MaxPendingTransactions {
-		l.log.Trace("skipping publish due to pending transactions")
-		return nil
-	}
-
+func (l *BatchSubmitter) publishStateToL1(ctx context.Context, receiptsCh chan txReceipt) (func(), error) {
 	l1tip, err := l.l1Tip(ctx)
 	if err != nil {
 		l.log.Error("Failed to query L1 tip", "error", err)
-		return err
+		return nil, err
 	}
 	l.recordL1Tip(l1tip)
 
@@ -387,29 +381,20 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context, receiptsCh chan t
 	txdata, err := l.state.TxData(l1tip.ID())
 	if err == io.EOF {
 		l.log.Trace("no transaction data available")
-		return err
+		return nil, err
 	} else if err != nil {
 		l.log.Error("unable to get tx data", "err", err)
-		return err
+		return nil, err
 	}
 
-	pending = l.pendingTxs.Add(1)
-	l.metr.RecordPendingTx(pending)
-	l.txWg.Add(1)
-	go func() {
-		defer func() {
-			l.txWg.Done()
-			pending = l.pendingTxs.Add(^uint64(0)) // -1
-			l.metr.RecordPendingTx(pending)
-		}()
+	return func() {
 		receipt, err := l.sendTransaction(ctx, txdata.Bytes())
 		receiptsCh <- txReceipt{
 			id:      txdata.ID(),
 			receipt: receipt,
 			err:     err,
 		}
-	}()
-	return nil
+	}, nil
 }
 
 // sendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
