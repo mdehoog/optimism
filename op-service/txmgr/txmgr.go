@@ -70,10 +70,10 @@ type ETHBackend interface {
 	// NonceAt returns the account nonce of the given account.
 	// The block number can be nil, in which case the nonce is taken from the latest known block.
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
-	// PendingNonce returns the pending nonce.
+	// PendingNonceAt returns the pending nonce.
 	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
-	/// EstimateGas returns an estimate of the amount of gas needed to execute the given
-	/// transaction against the current pending block.
+	// EstimateGas returns an estimate of the amount of gas needed to execute the given
+	// transaction against the current pending block.
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 }
 
@@ -159,7 +159,7 @@ func (m *SimpleTxManager) reset() {
 		return
 	}
 
-	close(m.resetChannel())
+	close(m.getResetChannel())
 	m.wg.Wait()
 
 	m.lock.Lock()
@@ -170,9 +170,9 @@ func (m *SimpleTxManager) reset() {
 	m.resetting.Store(false)
 }
 
-// resetChannel is a thread-safe getter for the channel that is closed upon
+// getResetChannel is a thread-safe getter for the channel that is closed upon
 // transaction manager resets.
-func (m *SimpleTxManager) resetChannel() chan struct{} {
+func (m *SimpleTxManager) getResetChannel() chan struct{} {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.resetC
@@ -294,7 +294,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 
 	ticker := time.NewTicker(m.cfg.ResubmissionTimeout)
 	defer ticker.Stop()
-	resetChan := m.resetChannel()
+	resetChan := m.getResetChannel()
 
 	bumpCounter := 0
 	for {
