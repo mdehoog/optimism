@@ -13,12 +13,12 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 )
 
 type OpNode struct {
@@ -116,10 +116,12 @@ func (n *OpNode) initTracer(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
-	l1Node, rpcCfg, err := cfg.L1.Setup(ctx, n.log, &cfg.Rollup)
+	l1Node, err := cfg.L1.Setup(ctx, n.log)
 	if err != nil {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
+
+	rpcCfg := sources.L1ClientDefaultConfig(&cfg.Rollup, cfg.L1)
 
 	n.l1Source, err = sources.NewL1Client(
 		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache, rpcCfg)

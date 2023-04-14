@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 
 	"github.com/urfave/cli"
@@ -48,7 +48,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p config: %w", err)
 	}
 
-	l1Endpoint := NewL1EndpointConfig(ctx)
+	l1Endpoint := client.NewL1EndpointConfig(ctx)
 
 	l2Endpoint, err := NewL2EndpointConfig(ctx, log)
 	if err != nil {
@@ -91,17 +91,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 	return cfg, nil
-}
-
-func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
-	return &node.L1EndpointConfig{
-		L1NodeAddr:       ctx.GlobalString(flags.L1NodeAddr.Name),
-		L1TrustRPC:       ctx.GlobalBool(flags.L1TrustRPC.Name),
-		L1RPCKind:        sources.RPCProviderKind(strings.ToLower(ctx.GlobalString(flags.L1RPCProviderKind.Name))),
-		RateLimit:        ctx.GlobalFloat64(flags.L1RPCRateLimit.Name),
-		BatchSize:        ctx.GlobalInt(flags.L1RPCMaxBatchSize.Name),
-		HttpPollInterval: ctx.Duration(flags.L1HTTPPollInterval.Name),
-	}
 }
 
 func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConfig, error) {

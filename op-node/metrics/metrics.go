@@ -11,6 +11,7 @@ import (
 	"time"
 
 	ophttp "github.com/ethereum-optimism/optimism/op-node/http"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
@@ -31,8 +32,6 @@ const (
 
 	RPCServerSubsystem = "rpc_server"
 	RPCClientSubsystem = "rpc_client"
-
-	BatchMethod = "<batch>"
 )
 
 type Metricer interface {
@@ -70,6 +69,8 @@ type Metricer interface {
 	ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	PayloadsQuarantineSize(n int)
+	RecordBatchDuration(method string) client.DurationObserver
+	RecordBatchMethod(method string)
 }
 
 // Metrics tracks all the metrics for the op-node.
@@ -648,6 +649,15 @@ func (m *Metrics) RecordChannelInputBytes(inputCompressedBytes int) {
 	m.ChannelInputBytes.Add(float64(inputCompressedBytes))
 }
 
+func (m *Metrics) RecordBatchDuration(method string) client.DurationObserver {
+	m.RPCClientRequestsTotal.WithLabelValues(method).Inc()
+	return prometheus.NewTimer(m.RPCClientRequestDurationSeconds.WithLabelValues(method))
+}
+
+func (m *Metrics) RecordBatchMethod(method string) {
+	m.RPCClientRequestsTotal.WithLabelValues(method).Inc()
+}
+
 type noopMetricer struct{}
 
 var NoopMetrics Metricer = new(noopMetricer)
@@ -752,4 +762,19 @@ func (n *noopMetricer) PayloadsQuarantineSize(int) {
 }
 
 func (n *noopMetricer) RecordChannelInputBytes(int) {
+}
+
+func (n *noopMetricer) RecordBatchDuration(method string) client.DurationObserver {
+	return NoopDurationObserver
+}
+
+func (n *noopMetricer) RecordBatchMethod(method string) {
+}
+
+type noopDurationObserver struct{}
+
+var NoopDurationObserver client.DurationObserver = &noopDurationObserver{}
+
+func (n *noopDurationObserver) ObserveDuration() time.Duration {
+	return 0
 }

@@ -21,9 +21,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 )
 
 type EthClientConfig struct {
@@ -56,7 +56,7 @@ type EthClientConfig struct {
 	MustBePostMerge bool
 
 	// RPCProviderKind is a hint at what type of RPC provider we are dealing with
-	RPCProviderKind RPCProviderKind
+	RPCProviderKind client.RPCProviderKind
 
 	// Method reset duration defines how long we stick to available RPC methods,
 	// till we re-attempt the user-preferred methods.
@@ -83,7 +83,7 @@ func (c *EthClientConfig) Check() error {
 	if c.MaxRequestsPerBatch < 1 {
 		return fmt.Errorf("expected at least 1 request per batch, but max is: %d", c.MaxRequestsPerBatch)
 	}
-	if !ValidRPCProviderKind(c.RPCProviderKind) {
+	if !client.ValidRPCProviderKind(c.RPCProviderKind) {
 		return fmt.Errorf("unknown rpc provider kind: %s", c.RPCProviderKind)
 	}
 	return nil
@@ -99,7 +99,7 @@ type EthClient struct {
 
 	mustBePostMerge bool
 
-	provKind RPCProviderKind
+	provKind client.RPCProviderKind
 
 	log log.Logger
 

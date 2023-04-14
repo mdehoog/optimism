@@ -3,8 +3,8 @@ package batcher
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -13,7 +13,6 @@ import (
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
 // method will return an error.
 func dialEthClientWithTimeout(ctx context.Context, url string) (*ethclient.Client, error) {
-
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 

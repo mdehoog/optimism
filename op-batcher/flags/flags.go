@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -16,12 +17,6 @@ const envVarPrefix = "OP_BATCHER"
 
 var (
 	// Required flags
-	L1EthRpcFlag = cli.StringFlag{
-		Name:     "l1-eth-rpc",
-		Usage:    "HTTP provider URL for L1",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
-	}
 	L2EthRpcFlag = cli.StringFlag{
 		Name:     "l2-eth-rpc",
 		Usage:    "HTTP provider URL for L2 execution engine",
@@ -91,7 +86,6 @@ var (
 )
 
 var requiredFlags = []cli.Flag{
-	L1EthRpcFlag,
 	L2EthRpcFlag,
 	RollupRpcFlag,
 	SubSafetyMarginFlag,
@@ -108,8 +102,10 @@ var optionalFlags = []cli.Flag{
 }
 
 func init() {
+	requiredFlags = append(requiredFlags, opclient.RequiredCLIFlags(envVarPrefix)...)
 	requiredFlags = append(requiredFlags, oprpc.CLIFlags(envVarPrefix)...)
 
+	optionalFlags = append(optionalFlags, opclient.OptionalCLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)

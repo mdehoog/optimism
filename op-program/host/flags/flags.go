@@ -2,13 +2,12 @@ package flags
 
 import (
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"strings"
 
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	nodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	service "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
@@ -64,10 +63,10 @@ var (
 	L1RPCProviderKind = cli.GenericFlag{
 		Name: "l1.rpckind",
 		Usage: "The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: " +
-			nodeflags.EnumString[sources.RPCProviderKind](sources.RPCProviderKinds),
+			service.EnumString[client.RPCProviderKind](client.RPCProviderKinds),
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "L1_RPC_KIND"),
-		Value: func() *sources.RPCProviderKind {
-			out := sources.RPCKindBasic
+		Value: func() *client.RPCProviderKind {
+			out := client.RPCKindBasic
 			return &out
 		}(),
 	}

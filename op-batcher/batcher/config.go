@@ -1,6 +1,7 @@
 package batcher
 
 import (
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -21,7 +22,7 @@ import (
 type Config struct {
 	log        log.Logger
 	metr       metrics.Metricer
-	L1Client   *ethclient.Client
+	L1Client   client.RPC
 	L2Client   *ethclient.Client
 	RollupNode *sources.RollupClient
 	TxManager  txmgr.TxManager
@@ -48,8 +49,8 @@ func (c *Config) Check() error {
 }
 
 type CLIConfig struct {
-	// L1EthRpc is the HTTP provider URL for L1.
-	L1EthRpc string
+	// L1 is the HTTP provider config for L1.
+	L1 *client.L1EndpointConfig
 
 	// L2EthRpc is the HTTP provider URL for the L2 execution engine.
 	L2EthRpc string
@@ -121,7 +122,7 @@ func (c CLIConfig) Check() error {
 func NewConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		/* Required Flags */
-		L1EthRpc:        ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L1:              client.NewL1EndpointConfig(ctx),
 		L2EthRpc:        ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		RollupRpc:       ctx.GlobalString(flags.RollupRpcFlag.Name),
 		SubSafetyMargin: ctx.GlobalUint64(flags.SubSafetyMarginFlag.Name),

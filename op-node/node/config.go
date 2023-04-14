@@ -9,11 +9,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 )
 
 type Config struct {
-	L1     L1EndpointSetup
+	L1     *client.L1EndpointConfig
 	L2     L2EndpointSetup
 	L2Sync L2SyncEndpointSetup
 

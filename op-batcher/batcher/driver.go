@@ -49,7 +49,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, err := cfg.L1.Setup(ctx, l)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		return nil, fmt.Errorf("querying rollup config: %w", err)
 	}
 
-	txManager, err := txmgr.NewSimpleTxManager("batcher", l, m, cfg.TxMgrConfig)
+	txManager, err := txmgr.NewSimpleTxManager("batcher", l, m, l1Client, cfg.TxMgrConfig)
 	if err != nil {
 		return nil, err
 	}

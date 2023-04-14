@@ -10,10 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 )
 
 type L1ClientConfig struct {
@@ -22,7 +22,7 @@ type L1ClientConfig struct {
 	L1BlockRefsCacheSize int
 }
 
-func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind RPCProviderKind) *L1ClientConfig {
+func L1ClientDefaultConfig(config *rollup.Config, l1Config *client.L1EndpointConfig) *L1ClientConfig {
 	// Cache 3/2 worth of sequencing window of receipts and txs
 	span := int(config.SeqWindowSize) * 3 / 2
 	fullSpan := span
@@ -36,11 +36,11 @@ func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind RPCProvide
 			TransactionsCacheSize: span,
 			HeadersCacheSize:      span,
 			PayloadsCacheSize:     span,
-			MaxRequestsPerBatch:   20, // TODO: tune batch param
+			MaxRequestsPerBatch:   l1Config.BatchSize,
 			MaxConcurrentRequests: 10,
-			TrustRPC:              trustRPC,
+			TrustRPC:              l1Config.TrustRPC,
 			MustBePostMerge:       false,
-			RPCProviderKind:       kind,
+			RPCProviderKind:       l1Config.RPCKind,
 			MethodResetDuration:   time.Minute,
 		},
 		// Not bounded by span, to cover find-sync-start range fully for speedy recovery after errors.

@@ -3,22 +3,22 @@ package client
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"regexp"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var httpRegex = regexp.MustCompile("^http(s)?://")
 
 type RPC interface {
+	txmgr.ETHBackend
 	Close()
 	CallContext(ctx context.Context, result any, method string, args ...any) error
 	BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
@@ -124,7 +124,7 @@ func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, 
 // with the client.RPC interface.
 // It sets a timeout of 10s on CallContext & 20s on BatchCallContext made through it.
 type BaseRPCClient struct {
-	c *rpc.Client
+	rpc.Client
 }
 
 func NewBaseRPCClient(c *rpc.Client) *BaseRPCClient {
@@ -148,18 +148,18 @@ func (b *BaseRPCClient) BatchCallContext(ctx context.Context, batch []rpc.BatchE
 }
 
 func (b *BaseRPCClient) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
-	return b.c.EthSubscribe(ctx, channel, args...)
+	return b.EthSubscribe(ctx, channel, args...)
 }
 
 // InstrumentedRPCClient is an RPC client that tracks
 // Prometheus metrics for each call.
 type InstrumentedRPCClient struct {
 	c RPC
-	m *metrics.Metrics
+	m Metrics
 }
 
 // NewInstrumentedRPC creates a new instrumented RPC client.
-func NewInstrumentedRPC(c RPC, m *metrics.Metrics) *InstrumentedRPCClient {
+func NewInstrumentedRPC(c RPC, m Metrics) *InstrumentedRPCClient {
 	return &InstrumentedRPCClient{
 		c: c,
 		m: m,
@@ -186,22 +186,28 @@ func (ic *InstrumentedRPCClient) EthSubscribe(ctx context.Context, channel any, 
 	return ic.c.EthSubscribe(ctx, channel, args...)
 }
 
+func instrument1(m Metrics, name string, cb func() error) error {
+	record := m.RecordRPCClientRequest(name)
+	err := cb()
+	record(err)
+	return err
+}
+
 // instrumentBatch handles metrics for batch calls. Request metrics are
 // increased for each batch element. Request durations are tracked for
 // the batch as a whole using a special <batch> method. Errors are tracked
 // for each individual batch response, unless the overall request fails in
 // which case the <batch> method is used.
-func instrumentBatch(m *metrics.Metrics, cb func() error, b []rpc.BatchElem) error {
-	m.RPCClientRequestsTotal.WithLabelValues(metrics.BatchMethod).Inc()
+func instrumentBatch(m Metrics, cb func() error, b []rpc.BatchElem) error {
+	observer := m.RecordBatchDuration(BatchMethod)
 	for _, elem := range b {
-		m.RPCClientRequestsTotal.WithLabelValues(elem.Method).Inc()
+		m.RecordBatchMethod(elem.Method)
 	}
-	timer := prometheus.NewTimer(m.RPCClientRequestDurationSeconds.WithLabelValues(metrics.BatchMethod))
-	defer timer.ObserveDuration()
+	defer observer.ObserveDuration()
 
 	// Track response times for batch requests separately.
 	if err := cb(); err != nil {
-		m.RecordRPCClientResponse(metrics.BatchMethod, err)
+		m.RecordRPCClientResponse(BatchMethod, err)
 		return err
 	}
 	for _, elem := range b {

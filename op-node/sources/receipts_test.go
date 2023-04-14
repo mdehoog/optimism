@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -85,7 +85,7 @@ func (e *methodNotFoundError) Error() string {
 // to test the prioritization/fallback logic of the receipt fetching in the EthClient.
 type ReceiptsTestCase struct {
 	name         string
-	providerKind RPCProviderKind
+	providerKind client.RPCProviderKind
 	staticMethod bool
 	setup        func(t *testing.T) (*rpcBlock, []ReceiptsRequest)
 }
@@ -229,34 +229,34 @@ func TestEthClient_FetchReceipts(t *testing.T) {
 	testCases := []ReceiptsTestCase{
 		{
 			name:         "alchemy",
-			providerKind: RPCKindAlchemy,
+			providerKind: client.RPCKindAlchemy,
 			setup:        fallbackCase(30, AlchemyGetTransactionReceipts),
 		},
 		{
 			name:         "alchemy sticky",
-			providerKind: RPCKindAlchemy,
+			providerKind: client.RPCKindAlchemy,
 			staticMethod: true,
 			setup:        fallbackCase(30, AlchemyGetTransactionReceipts, AlchemyGetTransactionReceipts),
 		},
 		{
 			name:         "alchemy fallback 1",
-			providerKind: RPCKindAlchemy,
+			providerKind: client.RPCKindAlchemy,
 			setup:        fallbackCase(40, AlchemyGetTransactionReceipts, EthGetBlockReceipts),
 		},
 		{
 			name:         "alchemy low tx count cost saving",
-			providerKind: RPCKindAlchemy,
+			providerKind: client.RPCKindAlchemy,
 			// when it's cheaper to fetch individual receipts than the alchemy-bundled receipts we change methods.
 			setup: fallbackCase(5, EthGetTransactionReceiptBatch),
 		},
 		{
 			name:         "quicknode",
-			providerKind: RPCKindQuickNode,
+			providerKind: client.RPCKindQuickNode,
 			setup:        fallbackCase(30, DebugGetRawReceipts),
 		},
 		{
 			name:         "quicknode fallback 1",
-			providerKind: RPCKindQuickNode,
+			providerKind: client.RPCKindQuickNode,
 			setup: fallbackCase(30,
 				DebugGetRawReceipts,
 				EthGetBlockReceipts,
@@ -264,43 +264,43 @@ func TestEthClient_FetchReceipts(t *testing.T) {
 		},
 		{
 			name:         "quicknode low tx count cost saving",
-			providerKind: RPCKindQuickNode,
+			providerKind: client.RPCKindQuickNode,
 			// when it's cheaper to fetch individual receipts than the alchemy-bundled receipts we change methods.
 			setup: fallbackCase(5, DebugGetRawReceipts, EthGetTransactionReceiptBatch),
 		},
 		{
 			name:         "infura",
-			providerKind: RPCKindInfura,
+			providerKind: client.RPCKindInfura,
 			setup:        fallbackCase(4, EthGetTransactionReceiptBatch),
 		},
 		{
 			name:         "nethermind",
-			providerKind: RPCKindNethermind,
+			providerKind: client.RPCKindNethermind,
 			setup:        fallbackCase(4, ParityGetBlockReceipts), // uses parity namespace method
 		},
 		{
 			name:         "geth with debug rpc",
-			providerKind: RPCKindDebugGeth,
+			providerKind: client.RPCKindDebugGeth,
 			setup:        fallbackCase(4, DebugGetRawReceipts),
 		},
 		{
 			name:         "erigon",
-			providerKind: RPCKindErigon,
+			providerKind: client.RPCKindErigon,
 			setup:        fallbackCase(4, EthGetBlockReceipts),
 		},
 		{
 			name:         "basic",
-			providerKind: RPCKindBasic,
+			providerKind: client.RPCKindBasic,
 			setup:        fallbackCase(4, EthGetTransactionReceiptBatch),
 		},
 		{
 			name:         "any discovers alchemy",
-			providerKind: RPCKindAny,
+			providerKind: client.RPCKindAny,
 			setup:        fallbackCase(4, AlchemyGetTransactionReceipts),
 		},
 		{
 			name:         "any discovers parity",
-			providerKind: RPCKindAny,
+			providerKind: client.RPCKindAny,
 			// fallback through the least priority method: parity (nethermind supports this still)
 			setup: fallbackCase(4,
 				AlchemyGetTransactionReceipts,

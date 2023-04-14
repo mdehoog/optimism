@@ -12,6 +12,10 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+type BatchCallContextFn func(ctx context.Context, b []rpc.BatchElem) error
+
+type CallContextFn func(ctx context.Context, result any, method string, args ...any) error
+
 // IterativeBatchCall batches many RPC requests with safe and easy parallelization.
 // Request errors are handled and re-tried, and the batch size is configurable.
 // Executing IterativeBatchCall is as simple as calling Fetch repeatedly until it returns io.EOF.

@@ -1,7 +1,6 @@
 package sources
 
 import (
-	"context"
 	"fmt"
 	"math/big"
 	"strings"
@@ -16,10 +15,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
-
-type BatchCallContextFn func(ctx context.Context, b []rpc.BatchElem) error
-
-type CallContextFn func(ctx context.Context, result any, method string, args ...any) error
 
 // Note: these types are used, instead of the geth types, to enable:
 // - batched calls of many block requests (standard bindings do extra uncle-header fetches, cannot be batched nicely)
@@ -275,12 +270,6 @@ func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload,
 		BlockHash:     block.Hash,
 		Transactions:  opaqueTxs,
 	}, nil
-}
-
-// blockHashParameter is used as "block parameter":
-// Some Nethermind and Alchemy RPC endpoints require an object to identify a block, instead of a string.
-type blockHashParameter struct {
-	BlockHash common.Hash `json:"blockHash"`
 }
 
 // unusableMethod identifies if an error indicates that the RPC method cannot be used as expected:

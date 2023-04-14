@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/urfave/cli"
@@ -22,12 +22,6 @@ func prefixEnvVar(name string) string {
 
 var (
 	/* Required Flags */
-	L1NodeAddr = cli.StringFlag{
-		Name:   "l1",
-		Usage:  "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
-		Value:  "http://127.0.0.1:8545",
-		EnvVar: prefixEnvVar("L1_ETH_RPC"),
-	}
 	L2EngineAddr = cli.StringFlag{
 		Name:   "l2",
 		Usage:  "Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)",
@@ -60,39 +54,6 @@ var (
 	}
 
 	/* Optional Flags */
-	L1TrustRPC = cli.BoolFlag{
-		Name:   "l1.trustrpc",
-		Usage:  "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
-		EnvVar: prefixEnvVar("L1_TRUST_RPC"),
-	}
-	L1RPCProviderKind = cli.GenericFlag{
-		Name: "l1.rpckind",
-		Usage: "The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: " +
-			EnumString[sources.RPCProviderKind](sources.RPCProviderKinds),
-		EnvVar: prefixEnvVar("L1_RPC_KIND"),
-		Value: func() *sources.RPCProviderKind {
-			out := sources.RPCKindBasic
-			return &out
-		}(),
-	}
-	L1RPCRateLimit = cli.Float64Flag{
-		Name:   "l1.rpc-rate-limit",
-		Usage:  "Optional self-imposed global rate-limit on L1 RPC requests, specified in requests / second. Disabled if set to 0.",
-		EnvVar: prefixEnvVar("L1_RPC_RATE_LIMIT"),
-		Value:  0,
-	}
-	L1RPCMaxBatchSize = cli.IntFlag{
-		Name:   "l1.rpc-max-batch-size",
-		Usage:  "Maximum number of RPC requests to bundle, e.g. during L1 blocks receipt fetching. The L1 RPC rate limit counts this as N items, but allows it to burst at once.",
-		EnvVar: prefixEnvVar("L1_RPC_MAX_BATCH_SIZE"),
-		Value:  20,
-	}
-	L1HTTPPollInterval = cli.DurationFlag{
-		Name:   "l1.http-poll-interval",
-		Usage:  "Polling interval for latest-block subscription when using an HTTP RPC provider. Ignored for other types of RPC endpoints.",
-		EnvVar: prefixEnvVar("L1_HTTP_POLL_INTERVAL"),
-		Value:  time.Second * 12,
-	}
 	L2EngineJWTSecret = cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -210,7 +171,6 @@ var (
 )
 
 var requiredFlags = []cli.Flag{
-	L1NodeAddr,
 	L2EngineAddr,
 	RPCListenAddr,
 	RPCListenPort,
@@ -219,11 +179,6 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	RollupConfig,
 	Network,
-	L1TrustRPC,
-	L1RPCProviderKind,
-	L1RPCRateLimit,
-	L1RPCMaxBatchSize,
-	L1HTTPPollInterval,
 	L2EngineJWTSecret,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
@@ -250,15 +205,17 @@ var optionalFlags = []cli.Flag{
 var Flags []cli.Flag
 
 func init() {
+	requiredFlags = append(requiredFlags, client.RequiredCLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, client.OptionalCLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, p2pFlags...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 
 func CheckRequired(ctx *cli.Context) error {
-	l1NodeAddr := ctx.GlobalString(L1NodeAddr.Name)
+	l1NodeAddr := ctx.GlobalString(client.L1NodeAddrName)
 	if l1NodeAddr == "" {
-		return fmt.Errorf("flag %s is required", L1NodeAddr.Name)
+		return fmt.Errorf("flag %s is required", client.L1NodeAddrName)
 	}
 	l2EngineAddr := ctx.GlobalString(L2EngineAddr.Name)
 	if l2EngineAddr == "" {

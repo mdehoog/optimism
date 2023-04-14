@@ -10,11 +10,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 )
 
 type L2ClientConfig struct {
@@ -50,7 +50,7 @@ func L2ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L2ClientConfig
 			MaxConcurrentRequests: 10,
 			TrustRPC:              trustRPC,
 			MustBePostMerge:       true,
-			RPCProviderKind:       RPCKindBasic,
+			RPCProviderKind:       client.RPCKindBasic,
 			MethodResetDuration:   time.Minute,
 		},
 		// Not bounded by span, to cover find-sync-start range fully for speedy recovery after errors.
