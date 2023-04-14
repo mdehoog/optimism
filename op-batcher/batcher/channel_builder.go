@@ -55,19 +55,10 @@ type ChannelConfig struct {
 	SubSafetyMargin uint64
 	// The maximum byte-size a frame can have.
 	MaxFrameSize uint64
-	// The target number of frames to create per channel. Note that if the
-	// realized compression ratio is worse than the approximate, more frames may
-	// actually be created. This also depends on how close TargetFrameSize is to
-	// MaxFrameSize.
-	TargetFrameSize uint64
 	// The target number of frames to create in this channel. If the realized
 	// compression ratio is worse than approxComprRatio, additional leftover
 	// frame(s) might get created.
 	TargetNumFrames int
-	// Approximated compression ratio to assume. Should be slightly smaller than
-	// average from experiments to avoid the chances of creating a small
-	// additional leftover frame.
-	ApproxComprRatio float64
 }
 
 // Check validates the [ChannelConfig] parameters.
@@ -94,12 +85,6 @@ func (cc *ChannelConfig) Check() error {
 	}
 
 	return nil
-}
-
-// InputThreshold calculates the input data threshold in bytes from the given
-// parameters.
-func (c ChannelConfig) InputThreshold() uint64 {
-	return uint64(float64(c.TargetNumFrames) * float64(c.TargetFrameSize) / c.ApproxComprRatio)
 }
 
 type frameID struct {
@@ -142,7 +127,7 @@ type channelBuilder struct {
 // newChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
 func newChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
-	co, err := derive.NewChannelOut()
+	co, err := derive.NewChannelOut(cfg.MaxFrameSize)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +194,7 @@ func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error
 		return l1info, fmt.Errorf("converting block to batch: %w", err)
 	}
 
-	if _, err = c.co.AddBatch(batch); errors.Is(err, derive.ErrTooManyRLPBytes) {
+	if _, err = c.co.AddBatch(batch); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.ErrMaxFrameSizeReached) {
 		c.setFullErr(err)
 		return l1info, c.FullErr()
 	} else if err != nil {
@@ -217,11 +202,6 @@ func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error
 	}
 	c.blocks = append(c.blocks, block)
 	c.updateSwTimeout(batch)
-
-	if c.inputTargetReached() {
-		c.setFullErr(ErrInputTargetReached)
-		// Adding this block still worked, so don't return error, just mark as full
-	}
 
 	return l1info, nil
 }
@@ -291,12 +271,6 @@ func (c *channelBuilder) checkTimeout(blockNum uint64) {
 // number. If no block timeout is set yet, it returns false.
 func (c *channelBuilder) TimedOut(blockNum uint64) bool {
 	return c.timeout != 0 && blockNum >= c.timeout
-}
-
-// inputTargetReached says whether the target amount of input data has been
-// reached in this channel builder. No more blocks can be added afterwards.
-func (c *channelBuilder) inputTargetReached() bool {
-	return uint64(c.co.InputBytes()) >= c.cfg.InputThreshold()
 }
 
 // IsFull returns whether the channel is full.

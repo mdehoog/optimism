@@ -2,7 +2,6 @@ package derive
 
 import (
 	"bytes"
-	"compress/zlib"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -17,6 +16,7 @@ import (
 var ErrMaxFrameSizeTooSmall = errors.New("maxSize is too small to fit the fixed frame overhead")
 var ErrNotDepositTx = errors.New("first transaction in block is not a deposit tx")
 var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limit")
+var ErrMaxFrameSizeReached = errors.New("batch would cause frame bytes to go over limit")
 
 // FrameV0OverHeadSize is the absolute minimum size of a frame.
 // This is the fixed overhead frame size, calculated as specified
@@ -32,10 +32,7 @@ type ChannelOut struct {
 	// rlpLength is the uncompressed size of the channel. Must be less than MAX_RLP_BYTES_PER_CHANNEL
 	rlpLength int
 
-	// Compressor stage. Write input data to it
-	compress *zlib.Writer
-	// post compression buffer
-	buf bytes.Buffer
+	compress *ChannelCompressor
 
 	closed bool
 }
@@ -44,7 +41,7 @@ func (co *ChannelOut) ID() ChannelID {
 	return co.id
 }
 
-func NewChannelOut() (*ChannelOut, error) {
+func NewChannelOut(maxFrameSize uint64) (*ChannelOut, error) {
 	c := &ChannelOut{
 		id:        ChannelID{}, // TODO: use GUID here instead of fully random data
 		frame:     0,
@@ -55,11 +52,10 @@ func NewChannelOut() (*ChannelOut, error) {
 		return nil, err
 	}
 
-	compress, err := zlib.NewWriterLevel(&c.buf, zlib.BestCompression)
+	c.compress, err = NewChannelCompressor(maxFrameSize)
 	if err != nil {
 		return nil, err
 	}
-	c.compress = compress
 
 	return c, nil
 }
@@ -68,8 +64,7 @@ func NewChannelOut() (*ChannelOut, error) {
 func (co *ChannelOut) Reset() error {
 	co.frame = 0
 	co.rlpLength = 0
-	co.buf.Reset()
-	co.compress.Reset(&co.buf)
+	co.compress.Reset()
 	co.closed = false
 	_, err := rand.Read(co.id[:])
 	return err
@@ -116,7 +111,8 @@ func (co *ChannelOut) AddBatch(batch *BatchData) (uint64, error) {
 	}
 	co.rlpLength += buf.Len()
 
-	written, err := io.Copy(co.compress, &buf)
+	// avoid using io.Copy here, because we need all or nothing
+	written, err := co.compress.Write(buf.Bytes())
 	return uint64(written), err
 }
 
@@ -129,7 +125,7 @@ func (co *ChannelOut) InputBytes() int {
 // Use `Flush` or `Close` to move data from the compression buffer into the ready buffer if more bytes
 // are needed. Add blocks may add to the ready buffer, but it is not guaranteed due to the compression stage.
 func (co *ChannelOut) ReadyBytes() int {
-	return co.buf.Len()
+	return co.compress.Len()
 }
 
 // Flush flushes the internal compression stage to the ready buffer. It enables pulling a larger & more
@@ -166,8 +162,8 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, erro
 
 	// Copy data from the local buffer into the frame data buffer
 	maxDataSize := maxSize - FrameV0OverHeadSize
-	if maxDataSize > uint64(co.buf.Len()) {
-		maxDataSize = uint64(co.buf.Len())
+	if maxDataSize > uint64(co.compress.Len()) {
+		maxDataSize = uint64(co.compress.Len())
 		// If we are closed & will not spill past the current frame
 		// mark it is the final frame of the channel.
 		if co.closed {
@@ -176,7 +172,7 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, erro
 	}
 	f.Data = make([]byte, maxDataSize)
 
-	if _, err := io.ReadFull(&co.buf, f.Data); err != nil {
+	if _, err := io.ReadFull(co.compress, f.Data); err != nil {
 		return 0, err
 	}
 

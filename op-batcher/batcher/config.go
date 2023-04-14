@@ -79,15 +79,8 @@ type CLIConfig struct {
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
 	MaxL1TxSize uint64
 
-	// TargetL1TxSize is the target size of a batch tx submitted to L1.
-	TargetL1TxSize uint64
-
 	// TargetNumFrames is the target number of frames per channel.
 	TargetNumFrames int
-
-	// ApproxComprRatio is the approximate compression ratio (<= 1.0) of the used
-	// compression algorithm.
-	ApproxComprRatio float64
 
 	Stopped bool
 
@@ -130,9 +123,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		/* Optional Flags */
 		MaxChannelDuration: ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:        ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
-		TargetL1TxSize:     ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
 		TargetNumFrames:    ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
-		ApproxComprRatio:   ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
 		Stopped:            ctx.GlobalBool(flags.StoppedFlag.Name),
 		TxMgrConfig:        txmgr.ReadCLIConfig(ctx),
 		RPCConfig:          rpc.ReadCLIConfig(ctx),
