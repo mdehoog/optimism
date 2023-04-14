@@ -12,7 +12,7 @@ import (
 )
 
 func TestChannelOutAddBlock(t *testing.T) {
-	cout, err := NewChannelOut()
+	cout, err := NewChannelOut(1000000)
 	require.NoError(t, err)
 
 	t.Run("returns err if first tx is not an l1info tx", func(t *testing.T) {
@@ -33,7 +33,7 @@ func TestChannelOutAddBlock(t *testing.T) {
 // max size that is below the fixed frame size overhead of 23, will return
 // an error.
 func TestOutputFrameSmallMaxSize(t *testing.T) {
-	cout, err := NewChannelOut()
+	cout, err := NewChannelOut(100)
 	require.NoError(t, err)
 
 	// Call OutputFrame with the range of small max size values that err
