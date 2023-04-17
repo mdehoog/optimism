@@ -133,7 +133,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 		if s.l2BatcherCfg.GarbageCfg != nil {
 			ch, err = NewGarbageChannelOut(s.l2BatcherCfg.GarbageCfg)
 		} else {
-			ch, err = derive.NewChannelOut(s.l2BatcherCfg.MaxL1TxSize)
+			ch, err = derive.NewChannelOut(s.l2BatcherCfg.MaxL1TxSize-1)
 		}
 		require.NoError(t, err, "failed to create channel")
 		s.l2ChannelOut = ch
