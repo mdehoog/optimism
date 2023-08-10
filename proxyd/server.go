@@ -44,7 +44,6 @@ const (
 	defaultWSWriteTimeout       = 10 * time.Second
 	maxRequestBodyLogLen        = 2000
 	defaultMaxUpstreamBatchSize = 10
-	defaultMaxBlockRange        = 10000
 )
 
 var emptyArrayResponse = json.RawMessage("[]")
@@ -61,7 +60,7 @@ type Server struct {
 	timeout                time.Duration
 	maxUpstreamBatchSize   int
 	maxBatchSize           int
-	maxBlockRange          int
+	maxBlockRange          uint64
 	upgrader               *websocket.Upgrader
 	mainLim                FrontendRateLimiter
 	overrideLims           map[string]FrontendRateLimiter
@@ -95,7 +94,7 @@ func NewServer(
 	enableRequestLog bool,
 	maxRequestBodyLogLen int,
 	maxBatchSize int,
-	maxBlockRange int,
+	maxBlockRange uint64,
 	redisClient *redis.Client,
 ) (*Server, error) {
 	if cache == nil {
@@ -116,10 +115,6 @@ func NewServer(
 
 	if maxBatchSize == 0 || maxBatchSize > MaxBatchRPCCallsHardLimit {
 		maxBatchSize = MaxBatchRPCCallsHardLimit
-	}
-
-	if maxBlockRange == 0 {
-		maxBlockRange = defaultMaxBlockRange
 	}
 
 	limiterFactory := func(dur time.Duration, max int, prefix string) FrontendRateLimiter {
@@ -184,6 +179,7 @@ func NewServer(
 		enableRequestLog:     enableRequestLog,
 		maxRequestBodyLogLen: maxRequestBodyLogLen,
 		maxBatchSize:         maxBatchSize,
+		maxBlockRange:        maxBlockRange,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: defaultWSHandshakeTimeout,
 		},
@@ -591,6 +587,9 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 }
 
 func (s *Server) allowedBlockRange(req *RPCReq) bool {
+	if s.maxBlockRange == 0 {
+		return true
+	}
 	fc := filters.FilterCriteria{}
 	err := fc.UnmarshalJSON(req.Params)
 	if err != nil {

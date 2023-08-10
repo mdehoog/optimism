@@ -143,7 +143,7 @@ type Config struct {
 	RPCMethodMappings     map[string]string     `toml:"rpc_method_mappings"`
 	WSMethodWhitelist     []string              `toml:"ws_method_whitelist"`
 	WhitelistErrorMessage string                `toml:"whitelist_error_message"`
-	MaxBlockRange         int                   `toml:"max_block_range"`
+	MaxBlockRange         uint64                `toml:"max_block_range"`
 	SenderRateLimit       SenderRateLimitConfig `toml:"sender_rate_limit"`
 }
 
