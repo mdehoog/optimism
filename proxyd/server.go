@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -73,7 +74,7 @@ type Server struct {
 	wsServer               *http.Server
 	cache                  RPCCache
 	srvMu                  sync.Mutex
-	latestBlockNumber      *big.Int
+	latestBlockNumber      atomic.Uint64
 	shutdown               bool
 }
 
@@ -222,8 +223,13 @@ func (s *Server) updateLatestBlockNumber() {
 		log.Error("error requesting latest block number", "err", err)
 		return
 	}
-	bn := res[0].Result.(string)
-	s.latestBlockNumber, _ = hexutil.DecodeBig(bn)
+	bns := res[0].Result.(string)
+	bn, err := hexutil.DecodeUint64(bns)
+	if err != nil {
+		log.Error("error decoding hex block number", "err", err)
+		return
+	}
+	s.latestBlockNumber.Store(bn)
 }
 
 func (s *Server) RPCListenAndServe(host string, port int) error {
@@ -592,11 +598,21 @@ func (s *Server) allowedBlockRange(req *RPCReq) bool {
 	if fc.BlockHash != nil {
 		return true
 	}
-	if fc.ToBlock == nil || fc.ToBlock.Int64() < 0 {
-		fc.ToBlock = s.latestBlockNumber
+	bn := int64(s.latestBlockNumber.Load())
+	if bn == 0 {
+		// latest block number not set yet, set to large number
+		bn = math.MaxInt64 - 1
 	}
-	if fc.FromBlock == nil || fc.FromBlock.Int64() < 0 {
-		fc.FromBlock = s.latestBlockNumber
+	if fc.ToBlock == nil || fc.ToBlock.Int64() < 0 {
+		// ToBlock defaults to latest block number (use latest for negative block tags too)
+		fc.ToBlock = big.NewInt(bn)
+	}
+	if fc.FromBlock == nil {
+		// FromBlock defaults to 0
+		fc.FromBlock = big.NewInt(0)
+	} else if fc.FromBlock.Int64() < 0 {
+		// use latest block number of negative block tags
+		fc.FromBlock = big.NewInt(bn)
 	}
 	rng := fc.ToBlock.Int64() - fc.FromBlock.Int64()
 	return rng <= int64(s.maxBlockRange)
