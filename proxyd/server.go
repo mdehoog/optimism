@@ -468,6 +468,7 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 
 		if (parsedReq.Method == "eth_newFilter" || parsedReq.Method == "eth_getLogs") && !s.allowedBlockRange(parsedReq) {
 			responses[i] = NewRPCErrorRes(parsedReq.ID, errors.New("block range too large"))
+			continue
 		}
 
 		group := s.rpcMethodMappings[parsedReq.Method]
