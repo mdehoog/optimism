@@ -216,7 +216,7 @@ func (s *Server) pollLatestBlockNumber() {
 func (s *Server) updateLatestBlockNumber() {
 	req := json.RawMessage("{\"id\":0,\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\"}")
 	res, _, err := s.handleBatchRPC(context.Background(), []json.RawMessage{req}, func(method string) bool { return false }, false)
-	if err != nil {
+	if err != nil || len(res) == 0 || res[0].Result == nil {
 		log.Error("error requesting latest block number", "err", err)
 		return
 	}
