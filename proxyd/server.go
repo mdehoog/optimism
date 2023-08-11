@@ -192,8 +192,10 @@ func NewServer(
 		limExemptOrigins:       limExemptOrigins,
 		limExemptUserAgents:    limExemptUserAgents,
 	}
-	s.updateLatestBlockNumber()
-	go s.pollLatestBlockNumber()
+	if maxBlockRange > 0 {
+		s.updateLatestBlockNumber()
+		go s.pollLatestBlockNumber()
+	}
 	return s, nil
 }
 
