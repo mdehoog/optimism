@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
@@ -590,8 +591,13 @@ func (s *Server) allowedBlockRange(req *RPCReq) bool {
 	if s.maxBlockRange == 0 {
 		return true
 	}
+	var arr []json.RawMessage
+	err := json.Unmarshal(req.Params, &arr)
+	if err != nil || len(arr) == 0 {
+		return true
+	}
 	fc := filters.FilterCriteria{}
-	err := fc.UnmarshalJSON(req.Params)
+	err = fc.UnmarshalJSON(arr[0])
 	if err != nil {
 		return true
 	}
@@ -603,15 +609,11 @@ func (s *Server) allowedBlockRange(req *RPCReq) bool {
 		// latest block number not set yet, set to large number
 		bn = math.MaxInt64 - 1
 	}
+	// FromBlock / ToBlock default to latest block number (use latest for negative block tags too)
 	if fc.ToBlock == nil || fc.ToBlock.Int64() < 0 {
-		// ToBlock defaults to latest block number (use latest for negative block tags too)
 		fc.ToBlock = big.NewInt(bn)
 	}
-	if fc.FromBlock == nil {
-		// FromBlock defaults to 0
-		fc.FromBlock = big.NewInt(0)
-	} else if fc.FromBlock.Int64() < 0 {
-		// use latest block number of negative block tags
+	if fc.FromBlock == nil || fc.FromBlock.Int64() < 0 {
 		fc.FromBlock = big.NewInt(bn)
 	}
 	rng := fc.ToBlock.Int64() - fc.FromBlock.Int64()
