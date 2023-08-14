@@ -201,17 +201,14 @@ func NewServer(
 
 func (s *Server) pollLatestBlockNumber() {
 	ticker := time.NewTicker(2 * time.Second)
-	for {
-		select {
-		case <-ticker.C:
-			s.srvMu.Lock()
-			if s.shutdown {
-				s.srvMu.Unlock()
-				return
-			}
-			s.updateLatestBlockNumber()
+	for range ticker.C {
+		s.srvMu.Lock()
+		if s.shutdown {
 			s.srvMu.Unlock()
+			return
 		}
+		s.updateLatestBlockNumber()
+		s.srvMu.Unlock()
 	}
 }
 
