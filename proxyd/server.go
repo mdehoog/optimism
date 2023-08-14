@@ -248,7 +248,9 @@ func (s *Server) Shutdown() {
 	for _, bg := range s.BackendGroups {
 		bg.Shutdown()
 	}
-	s.latestBlockPoller.Shutdown()
+	if s.latestBlockPoller != nil {
+		s.latestBlockPoller.Shutdown()
+	}
 }
 
 func (s *Server) HandleHealthz(w http.ResponseWriter, r *http.Request) {
