@@ -13,10 +13,10 @@ import (
 )
 
 type LatestBlockPoller struct {
-	latestBlockNumber atomic.Uint64
-	shutdown          bool
-	rt                RoundTripper
-	srvMu             sync.Mutex
+	rt       RoundTripper
+	bn       atomic.Uint64
+	shutdown bool
+	mutex    sync.Mutex
 }
 
 type RoundTripper func(ctx context.Context, req json.RawMessage) (*RPCRes, error)
@@ -27,38 +27,38 @@ func NewLatestBlockPoller(rt RoundTripper) *LatestBlockPoller {
 	p := &LatestBlockPoller{
 		rt: rt,
 	}
-	p.update()
+	p.poll()
 	go p.start()
 	return p
 }
 
 // Get returns the latest block number.
 func (p *LatestBlockPoller) Get() uint64 {
-	return p.latestBlockNumber.Load()
+	return p.bn.Load()
 }
 
 // Shutdown stops the poller.
 func (p *LatestBlockPoller) Shutdown() {
-	p.srvMu.Lock()
-	defer p.srvMu.Unlock()
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	p.shutdown = true
 }
 
 func (p *LatestBlockPoller) start() {
 	ticker := time.NewTicker(2 * time.Second)
 	for range ticker.C {
-		p.srvMu.Lock()
+		p.mutex.Lock()
 		if p.shutdown {
 			ticker.Stop()
-			p.srvMu.Unlock()
+			p.mutex.Unlock()
 			return
 		}
-		p.update()
-		p.srvMu.Unlock()
+		p.poll()
+		p.mutex.Unlock()
 	}
 }
 
-func (p *LatestBlockPoller) update() {
+func (p *LatestBlockPoller) poll() {
 	req := json.RawMessage("{\"id\":0,\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\"}")
 	res, err := p.rt(context.Background(), req)
 	if res != nil && res.IsError() {
@@ -74,5 +74,5 @@ func (p *LatestBlockPoller) update() {
 		log.Error("error decoding hex block number", "err", err)
 		return
 	}
-	p.latestBlockNumber.Store(bn)
+	p.bn.Store(bn)
 }
