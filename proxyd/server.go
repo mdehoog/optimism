@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -74,8 +73,7 @@ type Server struct {
 	wsServer               *http.Server
 	cache                  RPCCache
 	srvMu                  sync.Mutex
-	latestBlockNumber      atomic.Uint64
-	shutdown               bool
+	latestBlockPoller      *LatestBlockPoller
 }
 
 type limiterFunc func(method string) bool
@@ -193,40 +191,12 @@ func NewServer(
 		limExemptUserAgents:    limExemptUserAgents,
 	}
 	if maxBlockRange > 0 {
-		s.updateLatestBlockNumber()
-		go s.pollLatestBlockNumber()
+		s.latestBlockPoller = NewLatestBlockPoller(func(ctx context.Context, req json.RawMessage) (*RPCRes, error) {
+			res, _, err := s.handleBatchRPC(ctx, []json.RawMessage{req}, func(method string) bool { return false }, false)
+			return res[0], err
+		})
 	}
 	return s, nil
-}
-
-func (s *Server) pollLatestBlockNumber() {
-	ticker := time.NewTicker(2 * time.Second)
-	for range ticker.C {
-		s.srvMu.Lock()
-		if s.shutdown {
-			ticker.Stop()
-			s.srvMu.Unlock()
-			return
-		}
-		s.updateLatestBlockNumber()
-		s.srvMu.Unlock()
-	}
-}
-
-func (s *Server) updateLatestBlockNumber() {
-	req := json.RawMessage("{\"id\":0,\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\"}")
-	res, _, err := s.handleBatchRPC(context.Background(), []json.RawMessage{req}, func(method string) bool { return false }, false)
-	if err != nil || len(res) == 0 || res[0].Result == nil {
-		log.Error("error requesting latest block number", "err", err)
-		return
-	}
-	bns := res[0].Result.(string)
-	bn, err := hexutil.DecodeUint64(bns)
-	if err != nil {
-		log.Error("error decoding hex block number", "err", err)
-		return
-	}
-	s.latestBlockNumber.Store(bn)
 }
 
 func (s *Server) RPCListenAndServe(host string, port int) error {
@@ -278,7 +248,7 @@ func (s *Server) Shutdown() {
 	for _, bg := range s.BackendGroups {
 		bg.Shutdown()
 	}
-	s.shutdown = true
+	s.latestBlockPoller.Shutdown()
 }
 
 func (s *Server) HandleHealthz(w http.ResponseWriter, r *http.Request) {
@@ -463,7 +433,7 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 			continue
 		}
 
-		if (parsedReq.Method == "eth_newFilter" || parsedReq.Method == "eth_getLogs") && !s.allowedBlockRange(parsedReq) {
+		if !s.isAllowedBlockRange(parsedReq) {
 			responses[i] = NewRPCErrorRes(parsedReq.ID, errors.New("block range too large"))
 			continue
 		}
@@ -587,7 +557,11 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 	return responses, cached, nil
 }
 
-func (s *Server) allowedBlockRange(req *RPCReq) bool {
+func (s *Server) isAllowedBlockRange(req *RPCReq) bool {
+	if !(req.Method == "eth_newFilter" || req.Method == "eth_getLogs") {
+		// not a range method, ignore
+		return true
+	}
 	if s.maxBlockRange == 0 {
 		return true
 	}
@@ -604,7 +578,7 @@ func (s *Server) allowedBlockRange(req *RPCReq) bool {
 	if fc.BlockHash != nil {
 		return true
 	}
-	bn := int64(s.latestBlockNumber.Load())
+	bn := int64(s.latestBlockPoller.LatestBlockNumber())
 	if bn == 0 {
 		// latest block number not set yet, set to large number
 		bn = math.MaxInt64 - 1
