@@ -21,26 +21,30 @@ type LatestBlockPoller struct {
 
 type RoundTripper func(ctx context.Context, req json.RawMessage) (*RPCRes, error)
 
+// NewLatestBlockPoller creates a new LatestBlockPoller and starts polling
+// for the latest block number in a separate goroutine.
 func NewLatestBlockPoller(rt RoundTripper) *LatestBlockPoller {
 	p := &LatestBlockPoller{
 		rt: rt,
 	}
-	p.updateLatestBlockNumber()
-	go p.pollLatestBlockNumber()
+	p.update()
+	go p.start()
 	return p
 }
 
-func (p *LatestBlockPoller) LatestBlockNumber() uint64 {
+// Get returns the latest block number.
+func (p *LatestBlockPoller) Get() uint64 {
 	return p.latestBlockNumber.Load()
 }
 
+// Shutdown stops the poller.
 func (p *LatestBlockPoller) Shutdown() {
 	p.srvMu.Lock()
 	defer p.srvMu.Unlock()
 	p.shutdown = true
 }
 
-func (p *LatestBlockPoller) pollLatestBlockNumber() {
+func (p *LatestBlockPoller) start() {
 	ticker := time.NewTicker(2 * time.Second)
 	for range ticker.C {
 		p.srvMu.Lock()
@@ -49,12 +53,12 @@ func (p *LatestBlockPoller) pollLatestBlockNumber() {
 			p.srvMu.Unlock()
 			return
 		}
-		p.updateLatestBlockNumber()
+		p.update()
 		p.srvMu.Unlock()
 	}
 }
 
-func (p *LatestBlockPoller) updateLatestBlockNumber() {
+func (p *LatestBlockPoller) update() {
 	req := json.RawMessage("{\"id\":0,\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\"}")
 	res, err := p.rt(context.Background(), req)
 	if res != nil && res.IsError() {

@@ -578,7 +578,7 @@ func (s *Server) isAllowedBlockRange(req *RPCReq) bool {
 	if fc.BlockHash != nil {
 		return true
 	}
-	bn := int64(s.latestBlockPoller.LatestBlockNumber())
+	bn := int64(s.latestBlockPoller.Get())
 	if bn == 0 {
 		// latest block number not set yet, set to large number
 		bn = math.MaxInt64 - 1
