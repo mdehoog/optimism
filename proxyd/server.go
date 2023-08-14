@@ -204,6 +204,7 @@ func (s *Server) pollLatestBlockNumber() {
 	for range ticker.C {
 		s.srvMu.Lock()
 		if s.shutdown {
+			ticker.Stop()
 			s.srvMu.Unlock()
 			return
 		}
