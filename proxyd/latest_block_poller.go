@@ -21,8 +21,8 @@ type LatestBlockPoller struct {
 
 type RoundTripper func(ctx context.Context, req json.RawMessage) (*RPCRes, error)
 
-// NewLatestBlockPoller creates a new LatestBlockPoller and starts polling
-// for the latest block number in a separate goroutine.
+// NewLatestBlockPoller creates a new LatestBlockPoller and starts
+// polling for the latest block number in a separate goroutine.
 func NewLatestBlockPoller(pollingInterval time.Duration, rt RoundTripper) *LatestBlockPoller {
 	p := &LatestBlockPoller{
 		rt: rt,
