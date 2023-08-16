@@ -442,7 +442,9 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 		}
 
 		if !s.isAllowedBlockRange(parsedReq) {
-			responses[i] = NewRPCErrorRes(parsedReq.ID, errors.New("block range too large"))
+			responses[i] = NewRPCErrorRes(
+				parsedReq.ID,
+				fmt.Errorf("block range too large, max limit: %d", s.maxBlockRange))
 			continue
 		}
 
