@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+const pollingInterval = 2 * time.Second
+
 type LatestBlockPoller struct {
 	rt       RoundTripper
 	bn       atomic.Uint64
@@ -45,7 +47,7 @@ func (p *LatestBlockPoller) Shutdown() {
 }
 
 func (p *LatestBlockPoller) start() {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(pollingInterval)
 	for range ticker.C {
 		p.mutex.Lock()
 		if p.shutdown {
