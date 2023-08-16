@@ -49,10 +49,11 @@ func TestLatestBlockPoller(t *testing.T) {
 				i++
 				return tt.res[i].r, tt.res[i].e
 			}
-			bp := NewLatestBlockPoller(rt)
+			pollingInterval := 2 * time.Second
+			bp := NewLatestBlockPoller(pollingInterval, rt)
 			for i, bn := range tt.blockNumbers {
 				if i != 0 {
-					time.Sleep(pollingInterval + 100*time.Millisecond)
+					time.Sleep(pollingInterval + 50*time.Millisecond)
 				}
 				got := bp.Get()
 				require.Equal(t, bn, got)
