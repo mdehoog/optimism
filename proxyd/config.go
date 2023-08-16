@@ -144,6 +144,7 @@ type Config struct {
 	WSMethodWhitelist     []string              `toml:"ws_method_whitelist"`
 	WhitelistErrorMessage string                `toml:"whitelist_error_message"`
 	MaxBlockRange         uint64                `toml:"max_block_range"`
+	BlockPollingInterval  TOMLDuration          `toml:"block_polling_interval"`
 	SenderRateLimit       SenderRateLimitConfig `toml:"sender_rate_limit"`
 }
 

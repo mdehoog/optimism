@@ -240,6 +240,7 @@ func Start(config *Config) (*Server, func(), error) {
 		config.Server.MaxRequestBodyLogLen,
 		config.BatchConfig.MaxSize,
 		config.MaxBlockRange,
+		time.Duration(config.BlockPollingInterval),
 		redisClient,
 	)
 	if err != nil {

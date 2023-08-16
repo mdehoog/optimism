@@ -44,7 +44,7 @@ const (
 	defaultWSWriteTimeout       = 10 * time.Second
 	maxRequestBodyLogLen        = 2000
 	defaultMaxUpstreamBatchSize = 10
-	latestBlockPollingInterval  = 2 * time.Second
+	defaultBlockPollingInterval = 2 * time.Second
 )
 
 var emptyArrayResponse = json.RawMessage("[]")
@@ -95,6 +95,7 @@ func NewServer(
 	maxRequestBodyLogLen int,
 	maxBatchSize int,
 	maxBlockRange uint64,
+	blockPollingInterval time.Duration,
 	redisClient *redis.Client,
 ) (*Server, error) {
 	if cache == nil {
@@ -115,6 +116,10 @@ func NewServer(
 
 	if maxBatchSize == 0 || maxBatchSize > MaxBatchRPCCallsHardLimit {
 		maxBatchSize = MaxBatchRPCCallsHardLimit
+	}
+
+	if blockPollingInterval == 0 {
+		blockPollingInterval = defaultBlockPollingInterval
 	}
 
 	limiterFactory := func(dur time.Duration, max int, prefix string) FrontendRateLimiter {
@@ -192,7 +197,7 @@ func NewServer(
 		limExemptUserAgents:    limExemptUserAgents,
 	}
 	if maxBlockRange > 0 {
-		s.latestBlockPoller = NewLatestBlockPoller(latestBlockPollingInterval, func(ctx context.Context, req json.RawMessage) (*RPCRes, error) {
+		s.latestBlockPoller = NewLatestBlockPoller(blockPollingInterval, func(ctx context.Context, req json.RawMessage) (*RPCRes, error) {
 			res, _, err := s.handleBatchRPC(ctx, []json.RawMessage{req}, func(method string) bool { return false }, false)
 			return res[0], err
 		})
