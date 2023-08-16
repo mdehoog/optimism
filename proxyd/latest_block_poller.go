@@ -27,7 +27,6 @@ func NewLatestBlockPoller(pollingInterval time.Duration, rt RoundTripper) *Lates
 	p := &LatestBlockPoller{
 		rt: rt,
 	}
-	p.poll()
 	go p.start(pollingInterval)
 	return p
 }
@@ -46,7 +45,7 @@ func (p *LatestBlockPoller) Shutdown() {
 
 func (p *LatestBlockPoller) start(pollingInterval time.Duration) {
 	ticker := time.NewTicker(pollingInterval)
-	for range ticker.C {
+	for ; true; <-ticker.C {
 		p.mutex.Lock()
 		if p.shutdown {
 			ticker.Stop()
