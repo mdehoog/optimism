@@ -51,6 +51,7 @@ func TestLatestBlockPoller(t *testing.T) {
 			}
 			pollingInterval := 2 * time.Second
 			bp := NewLatestBlockPoller(pollingInterval, rt)
+			time.Sleep(50 * time.Millisecond)
 			for i, bn := range tt.blockNumbers {
 				if i != 0 {
 					time.Sleep(pollingInterval + 50*time.Millisecond)
