@@ -119,9 +119,6 @@ func Start(config *Config) (*Server, func(), error) {
 		if cfg.MaxRPS != 0 {
 			opts = append(opts, WithMaxRPS(cfg.MaxRPS))
 		}
-		if cfg.MaxBlockRange > 0 {
-			opts = append(opts, WithMaxBlockRange(cfg.MaxBlockRange))
-		}
 		if cfg.MaxWSConns != 0 {
 			opts = append(opts, WithMaxWSConns(cfg.MaxWSConns))
 		}
@@ -145,6 +142,7 @@ func Start(config *Config) (*Server, func(), error) {
 		}
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
 		opts = append(opts, WithConsensusSkipPeerCountCheck(cfg.ConsensusSkipPeerCountCheck))
+		opts = append(opts, WithConsensusForcedCandidate(cfg.ConsensusForcedCandidate))
 
 		receiptsTarget, err := ReadFromEnvOrConfig(cfg.ConsensusReceiptsTarget)
 		if err != nil {
@@ -310,6 +308,9 @@ func Start(config *Config) (*Server, func(), error) {
 			}
 			if bgcfg.ConsensusMinPeerCount > 0 {
 				copts = append(copts, WithMinPeerCount(uint64(bgcfg.ConsensusMinPeerCount)))
+			}
+			if bgcfg.ConsensusMaxBlockRange > 0 {
+				copts = append(copts, WithMaxBlockRange(bgcfg.ConsensusMaxBlockRange))
 			}
 
 			cp := NewConsensusPoller(bg, copts...)

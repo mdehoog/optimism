@@ -18,15 +18,13 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/eth/filters"
-	"github.com/ethereum/go-ethereum/rpc"
-
-	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
-
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
+
+	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
 )
 
 const (
@@ -134,13 +132,13 @@ type Backend struct {
 	maxRetries           int
 	maxResponseSize      int64
 	maxRPS               int
-	maxBlockRange        int64
 	maxWSConns           int
 	outOfServiceInterval time.Duration
 	stripTrailingXFF     bool
 	proxydIP             string
 
 	skipPeerCountCheck bool
+	forcedCandidate    bool
 
 	maxDegradedLatencyThreshold time.Duration
 	maxLatencyThreshold         time.Duration
@@ -190,12 +188,6 @@ func WithMaxRPS(maxRPS int) BackendOpt {
 	}
 }
 
-func WithMaxBlockRange(maxBlockRange int64) BackendOpt {
-	return func(b *Backend) {
-		b.maxBlockRange = maxBlockRange
-	}
-}
-
 func WithMaxWSConns(maxConns int) BackendOpt {
 	return func(b *Backend) {
 		b.maxWSConns = maxConns
@@ -226,6 +218,12 @@ func WithProxydIP(ip string) BackendOpt {
 func WithConsensusSkipPeerCountCheck(skipPeerCountCheck bool) BackendOpt {
 	return func(b *Backend) {
 		b.skipPeerCountCheck = skipPeerCountCheck
+	}
+}
+
+func WithConsensusForcedCandidate(forcedCandidate bool) BackendOpt {
+	return func(b *Backend) {
+		b.forcedCandidate = forcedCandidate
 	}
 }
 
@@ -429,12 +427,6 @@ func (b *Backend) ForwardRPC(ctx context.Context, res *RPCRes, id string, method
 }
 
 func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
-	var overrides []*indexedReqRes
-	rpcReqs, overrides = b.overrideRequests(rpcReqs)
-	if len(rpcReqs) == 0 {
-		return b.applyOverrides(overrides, []*RPCRes{}), nil
-	}
-
 	// we are concerned about network error rates, so we record 1 request independently of how many are in the batch
 	b.networkRequestsSlidingWindow.Incr()
 
@@ -611,66 +603,8 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	}
 
 	sortBatchRPCResponse(rpcReqs, rpcRes)
-	rpcRes = b.applyOverrides(overrides, rpcRes)
 
 	return rpcRes, nil
-}
-
-func (b *Backend) overrideRequests(reqs []*RPCReq) ([]*RPCReq, []*indexedReqRes) {
-	var overrides []*indexedReqRes
-	var newReqs []*RPCReq
-	for i, req := range reqs {
-		if !b.isAllowedBlockRange(req) {
-			overrides = append(overrides, &indexedReqRes{
-				index: i,
-				req:   req,
-				res: NewRPCErrorRes(
-					req.ID,
-					fmt.Errorf("block range too large, max limit: %d", b.maxBlockRange),
-				),
-			})
-			continue
-		}
-		newReqs = append(newReqs, req)
-	}
-	return newReqs, overrides
-}
-
-func (b *Backend) applyOverrides(overrides []*indexedReqRes, res []*RPCRes) []*RPCRes {
-	for _, ov := range overrides {
-		if len(res) > 0 {
-			// insert ov.res at position ov.index
-			res = append(res[:ov.index], append([]*RPCRes{ov.res}, res[ov.index:]...)...)
-		} else {
-			res = append(res, ov.res)
-		}
-	}
-	return res
-}
-
-func (b *Backend) isAllowedBlockRange(req *RPCReq) bool {
-	if !(req.Method == "eth_newFilter" || req.Method == "eth_getLogs") {
-		// not a range method, ignore
-		return true
-	}
-	if b.maxBlockRange <= 0 {
-		return true
-	}
-	var arr []json.RawMessage
-	err := json.Unmarshal(req.Params, &arr)
-	if err != nil || len(arr) == 0 {
-		return true
-	}
-	fc := filters.FilterCriteria{}
-	err = fc.UnmarshalJSON(arr[0])
-	if err != nil {
-		return true
-	}
-	if fc.BlockHash != nil {
-		return true
-	}
-	rng := fc.ToBlock.Int64() - fc.FromBlock.Int64()
-	return rng <= b.maxBlockRange
 }
 
 // IsHealthy checks if the backend is able to serve traffic, based on dynamic parameters
@@ -748,9 +682,10 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 
 		// We also rewrite block tags to enforce compliance with consensus
 		rctx := RewriteContext{
-			latest:    bg.Consensus.GetLatestBlockNumber(),
-			safe:      bg.Consensus.GetSafeBlockNumber(),
-			finalized: bg.Consensus.GetFinalizedBlockNumber(),
+			latest:        bg.Consensus.GetLatestBlockNumber(),
+			safe:          bg.Consensus.GetSafeBlockNumber(),
+			finalized:     bg.Consensus.GetFinalizedBlockNumber(),
+			maxBlockRange: bg.Consensus.maxBlockRange,
 		}
 
 		for i, req := range rpcReqs {
@@ -765,6 +700,11 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 				})
 				if errors.Is(err, ErrRewriteBlockOutOfRange) {
 					res.Error = ErrBlockOutOfRange
+				} else if errors.Is(err, ErrRewriteRangeTooLarge) {
+					res.Error = &RPCErr{
+						Code:    JSONRPCErrorInternal,
+						Message: fmt.Sprintf("block range greater than %d max", rctx.maxBlockRange),
+					}
 				} else {
 					res.Error = ErrParseErr
 				}

@@ -9,9 +9,10 @@ import (
 )
 
 type RewriteContext struct {
-	latest    hexutil.Uint64
-	safe      hexutil.Uint64
-	finalized hexutil.Uint64
+	latest        hexutil.Uint64
+	safe          hexutil.Uint64
+	finalized     hexutil.Uint64
+	maxBlockRange uint64
 }
 
 type RewriteResult uint8
@@ -32,6 +33,7 @@ const (
 
 var (
 	ErrRewriteBlockOutOfRange = errors.New("block is out of range")
+	ErrRewriteRangeTooLarge   = errors.New("block range is too large")
 )
 
 // RewriteTags modifies the request and the response based on block tags
@@ -140,6 +142,20 @@ func rewriteRange(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (Rewri
 		return RewriteOverrideError, err
 	}
 
+	if rctx.maxBlockRange > 0 && (hasFrom || hasTo) {
+		from, err := blockNumber(p[pos], "fromBlock")
+		if err != nil {
+			return RewriteOverrideError, err
+		}
+		to, err := blockNumber(p[pos], "toBlock")
+		if err != nil {
+			return RewriteOverrideError, err
+		}
+		if to-from > rctx.maxBlockRange {
+			return RewriteOverrideError, ErrRewriteRangeTooLarge
+		}
+	}
+
 	// if any of the fields the request have been changed, re-marshal the params
 	if modifiedFrom || modifiedTo {
 		paramsRaw, err := json.Marshal(p)
@@ -151,6 +167,14 @@ func rewriteRange(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (Rewri
 	}
 
 	return RewriteNone, nil
+}
+
+func blockNumber(m map[string]interface{}, key string) (uint64, error) {
+	current, ok := m[key].(string)
+	if !ok {
+		return 0, errors.New("expected string")
+	}
+	return hexutil.DecodeUint64(current)
 }
 
 func rewriteTagMap(rctx RewriteContext, m map[string]interface{}, key string) (bool, error) {
