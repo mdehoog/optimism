@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
@@ -44,7 +43,6 @@ const (
 	defaultWSWriteTimeout       = 10 * time.Second
 	maxRequestBodyLogLen        = 2000
 	defaultMaxUpstreamBatchSize = 10
-	defaultBlockPollingInterval = 2 * time.Second
 )
 
 var emptyArrayResponse = json.RawMessage("[]")
@@ -61,7 +59,6 @@ type Server struct {
 	timeout                time.Duration
 	maxUpstreamBatchSize   int
 	maxBatchSize           int
-	maxBlockRange          uint64
 	upgrader               *websocket.Upgrader
 	mainLim                FrontendRateLimiter
 	overrideLims           map[string]FrontendRateLimiter
@@ -74,7 +71,6 @@ type Server struct {
 	wsServer               *http.Server
 	cache                  RPCCache
 	srvMu                  sync.Mutex
-	latestBlockPoller      *LatestBlockPoller
 }
 
 type limiterFunc func(method string) bool
@@ -94,8 +90,6 @@ func NewServer(
 	enableRequestLog bool,
 	maxRequestBodyLogLen int,
 	maxBatchSize int,
-	maxBlockRange uint64,
-	blockPollingInterval time.Duration,
 	redisClient *redis.Client,
 ) (*Server, error) {
 	if cache == nil {
@@ -116,10 +110,6 @@ func NewServer(
 
 	if maxBatchSize == 0 || maxBatchSize > MaxBatchRPCCallsHardLimit {
 		maxBatchSize = MaxBatchRPCCallsHardLimit
-	}
-
-	if blockPollingInterval == 0 {
-		blockPollingInterval = defaultBlockPollingInterval
 	}
 
 	limiterFactory := func(dur time.Duration, max int, prefix string) FrontendRateLimiter {
@@ -171,7 +161,7 @@ func NewServer(
 		senderLim = limiterFactory(time.Duration(senderRateLimitConfig.Interval), senderRateLimitConfig.Limit, "senders")
 	}
 
-	s := &Server{
+	return &Server{
 		BackendGroups:        backendGroups,
 		wsBackendGroup:       wsBackendGroup,
 		wsMethodWhitelist:    wsMethodWhitelist,
@@ -184,7 +174,6 @@ func NewServer(
 		enableRequestLog:     enableRequestLog,
 		maxRequestBodyLogLen: maxRequestBodyLogLen,
 		maxBatchSize:         maxBatchSize,
-		maxBlockRange:        maxBlockRange,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: defaultWSHandshakeTimeout,
 		},
@@ -195,14 +184,7 @@ func NewServer(
 		allowedChainIds:        senderRateLimitConfig.AllowedChainIds,
 		limExemptOrigins:       limExemptOrigins,
 		limExemptUserAgents:    limExemptUserAgents,
-	}
-	if maxBlockRange > 0 {
-		s.latestBlockPoller = NewLatestBlockPoller(blockPollingInterval, func(ctx context.Context, req json.RawMessage) (*RPCRes, error) {
-			res, _, err := s.handleBatchRPC(ctx, []json.RawMessage{req}, func(method string) bool { return false }, false)
-			return res[0], err
-		})
-	}
-	return s, nil
+	}, nil
 }
 
 func (s *Server) RPCListenAndServe(host string, port int) error {
@@ -253,9 +235,6 @@ func (s *Server) Shutdown() {
 	}
 	for _, bg := range s.BackendGroups {
 		bg.Shutdown()
-	}
-	if s.latestBlockPoller != nil {
-		s.latestBlockPoller.Shutdown()
 	}
 }
 
@@ -441,13 +420,6 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 			continue
 		}
 
-		if !s.isAllowedBlockRange(parsedReq) {
-			responses[i] = NewRPCErrorRes(
-				parsedReq.ID,
-				fmt.Errorf("block range too large, max limit: %d", s.maxBlockRange))
-			continue
-		}
-
 		group := s.rpcMethodMappings[parsedReq.Method]
 		if group == "" {
 			// use unknown below to prevent DOS vector that fills up memory
@@ -565,43 +537,6 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 	}
 
 	return responses, cached, nil
-}
-
-func (s *Server) isAllowedBlockRange(req *RPCReq) bool {
-	if !(req.Method == "eth_newFilter" || req.Method == "eth_getLogs") {
-		// not a range method, ignore
-		return true
-	}
-	if s.maxBlockRange == 0 {
-		return true
-	}
-	var arr []json.RawMessage
-	err := json.Unmarshal(req.Params, &arr)
-	if err != nil || len(arr) == 0 {
-		return true
-	}
-	fc := filters.FilterCriteria{}
-	err = fc.UnmarshalJSON(arr[0])
-	if err != nil {
-		return true
-	}
-	if fc.BlockHash != nil {
-		return true
-	}
-	bn := int64(s.latestBlockPoller.Get())
-	if bn == 0 {
-		// latest block number not set yet, set to large number
-		bn = math.MaxInt64 - 1
-	}
-	// FromBlock / ToBlock default to latest block number (use latest for negative block tags too)
-	if fc.ToBlock == nil || fc.ToBlock.Int64() < 0 {
-		fc.ToBlock = big.NewInt(bn)
-	}
-	if fc.FromBlock == nil || fc.FromBlock.Int64() < 0 {
-		fc.FromBlock = big.NewInt(bn)
-	}
-	rng := fc.ToBlock.Int64() - fc.FromBlock.Int64()
-	return rng <= int64(s.maxBlockRange)
 }
 
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {

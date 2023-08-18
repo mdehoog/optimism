@@ -121,6 +121,15 @@ func rewriteRange(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (Rewri
 		return RewriteOverrideError, err
 	}
 
+	// if either fromBlock or toBlock is defined, default the other to "latest" if unset
+	_, hasFrom := p[pos]["fromBlock"]
+	_, hasTo := p[pos]["toBlock"]
+	if hasFrom && !hasTo {
+		p[pos]["toBlock"] = "latest"
+	} else if hasTo && !hasFrom {
+		p[pos]["fromBlock"] = "latest"
+	}
+
 	modifiedFrom, err := rewriteTagMap(rctx, p[pos], "fromBlock")
 	if err != nil {
 		return RewriteOverrideError, err

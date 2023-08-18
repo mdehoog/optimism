@@ -119,6 +119,9 @@ func Start(config *Config) (*Server, func(), error) {
 		if cfg.MaxRPS != 0 {
 			opts = append(opts, WithMaxRPS(cfg.MaxRPS))
 		}
+		if cfg.MaxBlockRange > 0 {
+			opts = append(opts, WithMaxBlockRange(cfg.MaxBlockRange))
+		}
 		if cfg.MaxWSConns != 0 {
 			opts = append(opts, WithMaxWSConns(cfg.MaxWSConns))
 		}
@@ -239,8 +242,6 @@ func Start(config *Config) (*Server, func(), error) {
 		config.Server.EnableRequestLog,
 		config.Server.MaxRequestBodyLogLen,
 		config.BatchConfig.MaxSize,
-		config.MaxBlockRange,
-		time.Duration(config.BlockPollingInterval),
 		redisClient,
 	)
 	if err != nil {

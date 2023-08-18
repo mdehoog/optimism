@@ -86,6 +86,7 @@ type BackendConfig struct {
 	WSURL            string `toml:"ws_url"`
 	WSPort           int    `toml:"ws_port"`
 	MaxRPS           int    `toml:"max_rps"`
+	MaxBlockRange    int64  `toml:"max_block_range"`
 	MaxWSConns       int    `toml:"max_ws_conns"`
 	CAFile           string `toml:"ca_file"`
 	ClientCertFile   string `toml:"client_cert_file"`
@@ -143,8 +144,6 @@ type Config struct {
 	RPCMethodMappings     map[string]string     `toml:"rpc_method_mappings"`
 	WSMethodWhitelist     []string              `toml:"ws_method_whitelist"`
 	WhitelistErrorMessage string                `toml:"whitelist_error_message"`
-	MaxBlockRange         uint64                `toml:"max_block_range"`
-	BlockPollingInterval  TOMLDuration          `toml:"block_polling_interval"`
 	SenderRateLimit       SenderRateLimitConfig `toml:"sender_rate_limit"`
 }
 
