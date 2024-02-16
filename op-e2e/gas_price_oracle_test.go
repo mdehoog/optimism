@@ -47,12 +47,37 @@ func TestGasPriceOracle(t *testing.T) {
 			return err
 		}
 
-		used, err := caller.GetL1GasUsed(&bind.CallOpts{}, b)
+		used, err := caller.GetL1Fee(&bind.CallOpts{}, b)
 		if err != nil {
 			return err
 		}
 
-		expected := (types.FlzCompressLen(b) + 68) * 16
+		var (
+			intercept          int64 = -27_321_890
+			fastlzCoef         int64 = 1_031_462
+			uncompressedTxCoef int64 = -88_664
+
+			l1BaseFeeScalar uint64 = 11_111
+			l1BlobFeeScalar uint64 = 1_250_000
+		)
+
+		l1BaseFee, err := caller.BaseFee(&bind.CallOpts{})
+
+		if err != nil {
+			return err
+		}
+
+		l1BaseFeeScaled := l1BaseFeeScalar * l1BaseFee.Uint64() * 16
+		l1BlobBaseFee, err := caller.BlobBaseFee(&bind.CallOpts{})
+
+		if err != nil {
+			return err
+		}
+		l1BlobFeeScaled := l1BlobFeeScalar * l1BlobBaseFee.Uint64()
+		l1FeeScaled := l1BaseFeeScaled + l1BlobFeeScaled
+		fastLzLength := types.FlzCompressLen(b)
+		expected := uint64(((intercept + fastlzCoef*int64(fastLzLength) + uncompressedTxCoef*int64(len(b)+64)) * int64(l1FeeScaled)) / 1e12)
+
 		assert.Equal(t, used.Uint64(), uint64(expected), path)
 
 		atLeastOnce = true
