@@ -1,6 +1,9 @@
 package op_e2e
 
 import (
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
 	"io/fs"
 	"math/big"
 	"os"
@@ -19,7 +22,45 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 )
 
+func inputsToHex(inputs []interface{}) []byte {
+	resultBytes := []byte{}
+	for _, input := range inputs {
+		switch v := input.(type) {
+		case int32:
+			bytes := make([]byte, 4)
+			binary.BigEndian.PutUint32(bytes, uint32(v))
+			resultBytes = append(resultBytes, bytes...)
+		case uint32:
+			bytes := make([]byte, 4)
+			binary.BigEndian.PutUint32(bytes, v)
+			resultBytes = append(resultBytes, bytes...)
+		case uint64:
+			bytes := make([]byte, 8)
+			binary.BigEndian.PutUint64(bytes, v)
+			resultBytes = append(resultBytes, bytes...)
+		default:
+			fmt.Printf("I don't know about type %T!\n", v)
+		}
+	}
+	// Print the hex-encoded string of 28 bytes
+	return resultBytes
+}
+
 func TestGasPriceOracle(t *testing.T) {
+
+	var (
+		sequenceNumber uint64 = 0
+		blobFeeScalar  uint32 = 1_250_000
+		baseFeeScalar  uint32 = 11_111
+		costTxSizeCoef int32  = -88_664
+		costFastlzCoef int32  = 1_031_462
+		costIntercept  int32  = -27_321_890
+	)
+
+	inputs := []interface{}{costIntercept, costFastlzCoef, costTxSizeCoef, baseFeeScalar, blobFeeScalar, sequenceNumber}
+	byteResult := append(make([]byte, 4), inputsToHex(inputs)...)
+	fmt.Println("inputs to bytes", len(byteResult), hex.EncodeToString(byteResult))
+
 	backend := backends.NewSimulatedBackend(map[common.Address]core.GenesisAccount{
 		predeploys.GasPriceOracleAddr: {
 			Code:    common.FromHex(bindings.GasPriceOracleDeployedBin),
@@ -31,6 +72,12 @@ func TestGasPriceOracle(t *testing.T) {
 		predeploys.L1BlockAddr: {
 			Code:    common.FromHex(bindings.L1BlockDeployedBin),
 			Balance: big.NewInt(0),
+			Storage: map[common.Hash]common.Hash{
+				common.HexToHash("0x1"): common.HexToHash("0x01"),                         // l1BaseFee 1
+				common.HexToHash("0x3"): common.HexToHash(hex.EncodeToString(byteResult)), // all constants
+				common.HexToHash("0x7"): common.HexToHash("0x01"),                         // l1BlobBaseFee 1
+
+			},
 		},
 	}, math.MaxUint64)
 
@@ -52,34 +99,23 @@ func TestGasPriceOracle(t *testing.T) {
 			return err
 		}
 
-		var (
-			intercept          int64 = -27_321_890
-			fastlzCoef         int64 = 1_031_462
-			uncompressedTxCoef int64 = -88_664
-
-			l1BaseFeeScalar uint64 = 11_111
-			l1BlobFeeScalar uint64 = 1_250_000
-		)
-
-		l1BaseFee, err := caller.BaseFee(&bind.CallOpts{})
+		l1BaseFee, err := caller.L1BaseFee(&bind.CallOpts{})
 
 		if err != nil {
 			return err
 		}
 
-		l1BaseFeeScaled := l1BaseFeeScalar * l1BaseFee.Uint64() * 16
+		l1BaseFeeScaled := uint64(baseFeeScalar) * l1BaseFee.Uint64() * 16
 		l1BlobBaseFee, err := caller.BlobBaseFee(&bind.CallOpts{})
-
 		if err != nil {
 			return err
 		}
-		l1BlobFeeScaled := l1BlobFeeScalar * l1BlobBaseFee.Uint64()
+
+		l1BlobFeeScaled := uint64(blobFeeScalar) * l1BlobBaseFee.Uint64()
 		l1FeeScaled := l1BaseFeeScaled + l1BlobFeeScaled
-		fastLzLength := types.FlzCompressLen(b)
-		expected := uint64(((intercept + fastlzCoef*int64(fastLzLength) + uncompressedTxCoef*int64(len(b)+64)) * int64(l1FeeScaled)) / 1e12)
-
+		fastLzLength := types.FlzCompressLen(b) + 68
+		expected := ((uint64(costIntercept) + uint64(costFastlzCoef)*uint64(fastLzLength) + uint64(costTxSizeCoef)*uint64(len(b)+68)) * uint64(l1FeeScaled)) / 1e12
 		assert.Equal(t, used.Uint64(), uint64(expected), path)
-
 		atLeastOnce = true
 		return nil
 	})
