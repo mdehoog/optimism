@@ -39,7 +39,7 @@ func inputsToHex(inputs []interface{}) []byte {
 			binary.BigEndian.PutUint64(bytes, v)
 			resultBytes = append(resultBytes, bytes...)
 		default:
-			fmt.Printf("I don't know about type %T!\n", v)
+			fmt.Errorf("unsupported type: %T", v)
 		}
 	}
 	// Print the hex-encoded string of 28 bytes
@@ -59,7 +59,6 @@ func TestGasPriceOracle(t *testing.T) {
 
 	inputs := []interface{}{costIntercept, costFastlzCoef, costTxSizeCoef, baseFeeScalar, blobFeeScalar, sequenceNumber}
 	byteResult := append(make([]byte, 4), inputsToHex(inputs)...)
-	fmt.Println("inputs to bytes", len(byteResult), hex.EncodeToString(byteResult))
 
 	backend := backends.NewSimulatedBackend(map[common.Address]core.GenesisAccount{
 		predeploys.GasPriceOracleAddr: {
@@ -113,8 +112,8 @@ func TestGasPriceOracle(t *testing.T) {
 
 		l1BlobFeeScaled := uint64(blobFeeScalar) * l1BlobBaseFee.Uint64()
 		l1FeeScaled := l1BaseFeeScaled + l1BlobFeeScaled
-		fastLzLength := types.FlzCompressLen(b) + 68
-		expected := ((uint64(costIntercept) + uint64(costFastlzCoef)*uint64(fastLzLength) + uint64(costTxSizeCoef)*uint64(len(b)+68)) * uint64(l1FeeScaled)) / 1e12
+		fastLzLength := types.FlzCompressLen(b)
+		expected := ((uint64(costIntercept) + uint64(costFastlzCoef)*uint64(fastLzLength+68) + uint64(costTxSizeCoef)*uint64(len(b)+68)) * uint64(l1FeeScaled)) / 1e12
 		assert.Equal(t, used.Uint64(), uint64(expected), path)
 		atLeastOnce = true
 		return nil
