@@ -22,7 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 )
 
-func inputsToHex(inputs []interface{}) []byte {
+func inputsToHex(inputs []interface{}) ([]byte, error) {
 	resultBytes := []byte{}
 	for _, input := range inputs {
 		switch v := input.(type) {
@@ -39,11 +39,11 @@ func inputsToHex(inputs []interface{}) []byte {
 			binary.BigEndian.PutUint64(bytes, v)
 			resultBytes = append(resultBytes, bytes...)
 		default:
-			fmt.Errorf("unsupported type: %T", v)
+			return nil, fmt.Errorf("unsupported type: %T", v)
 		}
 	}
 	// Print the hex-encoded string of 28 bytes
-	return resultBytes
+	return resultBytes, nil
 }
 
 func TestGasPriceOracle(t *testing.T) {
