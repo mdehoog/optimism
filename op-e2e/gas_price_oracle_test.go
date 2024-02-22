@@ -58,7 +58,10 @@ func TestGasPriceOracle(t *testing.T) {
 	)
 
 	inputs := []interface{}{costIntercept, costFastlzCoef, costTxSizeCoef, baseFeeScalar, blobFeeScalar, sequenceNumber}
-	byteResult := append(make([]byte, 4), inputsToHex(inputs)...)
+	payload, err := inputsToHex(inputs)
+	assert.NoError(t, err)
+
+	byteResult := append(make([]byte, 4), payload...)
 
 	backend := backends.NewSimulatedBackend(map[common.Address]core.GenesisAccount{
 		predeploys.GasPriceOracleAddr: {
