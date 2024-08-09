@@ -89,6 +89,14 @@ func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
 			"build_id", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
 		// If the engine failed to seal temporarily, just allow to resubmit (triggered on next safe-head poke)
 		eq.sentAttributes = false
+	case engine.RecordWitnessErrorEvent:
+		if x.DerivedFrom == (eth.L1BlockRef{}) {
+			return true // from sequencing
+		}
+		eq.log.Warn("Saving witness of derived attributes errored, job will be re-attempted.",
+			"build_id", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
+		// If the engine failed to seal temporarily, just allow to resubmit (triggered on next safe-head poke)
+		eq.sentAttributes = false
 	case engine.PayloadSealInvalidEvent:
 		if x.DerivedFrom == (eth.L1BlockRef{}) {
 			return true // from sequencing

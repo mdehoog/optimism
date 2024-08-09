@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -19,6 +20,13 @@ type Metrics interface {
 
 	RecordSequencerBuildingDiffTime(duration time.Duration)
 	RecordSequencerSealingTime(duration time.Duration)
+}
+
+type WitnessDB interface {
+	GetWitness(ctx context.Context, blockHash common.Hash) ([]byte, error)
+	PurgeOldWitnesses(ctx context.Context, beforeBlockNumber uint64) error
+	RecordWitness(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error
+	Close() error
 }
 
 // ForkchoiceRequestEvent signals to the engine that it should emit an artificial

@@ -37,8 +37,8 @@ var ErrNoFCUNeeded = errors.New("no FCU call was needed")
 
 type ExecEngine interface {
 	GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error)
-	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
-	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
+	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes, witness bool) (*eth.ForkchoiceUpdatedResult, error)
+	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash, witness bool) (*eth.PayloadStatusV1, error)
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 }
 
@@ -52,6 +52,7 @@ type EngineController struct {
 	rollupCfg  *rollup.Config
 	elStart    time.Time
 	clock      clock.Clock
+	witnessDB  WitnessDB
 
 	emitter event.Emitter
 
@@ -86,7 +87,7 @@ type EngineController struct {
 }
 
 func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metrics,
-	rollupCfg *rollup.Config, syncCfg *sync.Config, emitter event.Emitter) *EngineController {
+	rollupCfg *rollup.Config, syncCfg *sync.Config, witnessDB WitnessDB, emitter event.Emitter) *EngineController {
 	syncStatus := syncStatusCL
 	if syncCfg.SyncMode == sync.ELSync {
 		syncStatus = syncStatusWillStartEL
@@ -101,6 +102,7 @@ func NewEngineController(engine ExecEngine, log log.Logger, metrics derive.Metri
 		syncCfg:    syncCfg,
 		syncStatus: syncStatus,
 		clock:      clock.SystemClock,
+		witnessDB:  witnessDB,
 		emitter:    emitter,
 	}
 }
@@ -281,7 +283,7 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	}
 	logFn := e.logSyncProgressMaybe()
 	defer logFn()
-	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
+	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil, false)
 	if err != nil {
 		var inputErr eth.InputError
 		if errors.As(err, &inputErr) {
@@ -328,7 +330,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		}
 	}
 	// Insert the payload & then call FCU
-	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
+	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot, e.witnessDB != nil)
 	if err != nil {
 		return derive.NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
 	}
@@ -339,6 +341,12 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		payload := envelope.ExecutionPayload
 		return derive.NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %w",
 			payload.ID(), payload.ParentID(), eth.NewPayloadErr(payload, status)))
+	}
+
+	if e.witnessDB != nil {
+		if err := e.witnessDB.RecordWitness(ctx, envelope); err != nil {
+			return derive.NewTemporaryError(fmt.Errorf("failed to record witness: %w", err))
+		}
 	}
 
 	// Mark the new payload as valid
@@ -359,7 +367,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	}
 	logFn := e.logSyncProgressMaybe()
 	defer logFn()
-	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
+	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil, false)
 	if err != nil {
 		var inputErr eth.InputError
 		if errors.As(err, &inputErr) {
@@ -437,7 +445,7 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 	}
 	logFn := e.logSyncProgressMaybe()
 	defer logFn()
-	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
+	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil, false)
 	if err != nil {
 		var inputErr eth.InputError
 		if errors.As(err, &inputErr) {

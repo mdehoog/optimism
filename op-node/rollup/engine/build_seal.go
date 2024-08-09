@@ -38,6 +38,18 @@ func (ev PayloadSealExpiredErrorEvent) String() string {
 	return "payload-seal-expired-error"
 }
 
+type RecordWitnessErrorEvent struct {
+	Info eth.PayloadInfo
+	Err  error
+
+	IsLastInSpan bool
+	DerivedFrom  eth.L1BlockRef
+}
+
+func (ev RecordWitnessErrorEvent) String() string {
+	return "record-witness-error"
+}
+
 type BuildSealEvent struct {
 	Info         eth.PayloadInfo
 	BuildStarted time.Time
@@ -97,6 +109,18 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 			DerivedFrom:  ev.DerivedFrom,
 		})
 		return
+	}
+
+	if eq.ec.witnessDB != nil {
+		if err = eq.ec.witnessDB.RecordWitness(ctx, envelope); err != nil {
+			eq.emitter.Emit(RecordWitnessErrorEvent{
+				Info:         ev.Info,
+				Err:          fmt.Errorf("failed to record witness: %w", err),
+				IsLastInSpan: ev.IsLastInSpan,
+				DerivedFrom:  ev.DerivedFrom,
+			})
+			return
+		}
 	}
 
 	now := time.Now()

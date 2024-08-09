@@ -27,7 +27,7 @@ func (eq *EngDeriver) onPayloadProcess(ev PayloadProcessEvent) {
 	defer cancel()
 
 	status, err := eq.ec.engine.NewPayload(ctx,
-		ev.Envelope.ExecutionPayload, ev.Envelope.ParentBeaconBlockRoot)
+		ev.Envelope.ExecutionPayload, ev.Envelope.ParentBeaconBlockRoot, eq.ec.witnessDB != nil)
 	if err != nil {
 		eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{
 			Err: fmt.Errorf("failed to insert execution payload: %w", err)})

@@ -88,7 +88,7 @@ func safeFinalized(ctx context.Context, client client.RPC) (safe, finalized *typ
 
 func insertBlock(ctx context.Context, client *sources.EngineAPIClient, payloadEnv *eth.ExecutionPayloadEnvelope) error {
 	payload := payloadEnv.ExecutionPayload
-	payloadResult, err := client.NewPayload(ctx, payload, payloadEnv.ParentBeaconBlockRoot)
+	payloadResult, err := client.NewPayload(ctx, payload, payloadEnv.ParentBeaconBlockRoot, false)
 	if err != nil {
 		return fmt.Errorf("failed to insert block %d: %w", payload.BlockNumber, err)
 	}
@@ -103,7 +103,7 @@ func updateForkchoice(ctx context.Context, client *sources.EngineAPIClient, head
 		HeadBlockHash:      head,
 		SafeBlockHash:      safe,
 		FinalizedBlockHash: finalized,
-	}, nil)
+	}, nil, false)
 	if err != nil {
 		return fmt.Errorf("failed to update forkchoice with new head %s: %w", head, err)
 	}
@@ -140,7 +140,7 @@ func BuildBlock(ctx context.Context, client *sources.EngineAPIClient, status *St
 			HeadBlockHash:      status.Head.Hash,
 			SafeBlockHash:      status.Safe.Hash,
 			FinalizedBlockHash: status.Finalized.Hash,
-		}, attrs)
+		}, attrs, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set forkchoice when building new block: %w", err)
 	}

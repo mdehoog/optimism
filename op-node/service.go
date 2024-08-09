@@ -105,6 +105,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		RuntimeConfigReloadInterval: ctx.Duration(flags.RuntimeConfigReloadIntervalFlag.Name),
 		ConfigPersistence:           configPersistence,
 		SafeDBPath:                  ctx.String(flags.SafeDBPath.Name),
+		WitnessDBPath:               ctx.String(flags.WitnessDBPath.Name),
 		Sync:                        *syncConfig,
 		RollupHalt:                  haltOption,
 

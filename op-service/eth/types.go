@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
@@ -172,6 +173,7 @@ type (
 type ExecutionPayloadEnvelope struct {
 	ParentBeaconBlockRoot *common.Hash      `json:"parentBeaconBlockRoot,omitempty"`
 	ExecutionPayload      *ExecutionPayload `json:"executionPayload"`
+	Witness               *hexutil.Bytes    `json:"witness"`
 }
 
 type ExecutionPayload struct {
@@ -351,7 +353,8 @@ const (
 
 type PayloadStatusV1 struct {
 	// the result of the payload execution
-	Status ExecutePayloadStatus `json:"status"`
+	Status  ExecutePayloadStatus `json:"status"`
+	Witness *hexutil.Bytes       `json:"witness"`
 	// the hash of the most recent valid block in the branch defined by payload and its ancestors (optional field)
 	LatestValidHash *common.Hash `json:"latestValidHash,omitempty"`
 	// additional details on the result (optional field)
@@ -508,6 +511,14 @@ func (v *Uint64String) UnmarshalText(b []byte) error {
 }
 
 type EngineAPIMethod string
+
+func (m EngineAPIMethod) WithWitness(witness bool) string {
+	s := string(m)
+	if !witness || strings.Contains(s, "engine_getPayload") {
+		return s
+	}
+	return s[:len(s)-2] + "WithWitness" + s[len(s)-2:]
+}
 
 const (
 	FCUV1 EngineAPIMethod = "engine_forkchoiceUpdatedV1"

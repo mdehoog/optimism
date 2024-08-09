@@ -47,7 +47,7 @@ exec geth \
 	--authrpc.vhosts="*" \
 	--authrpc.jwtsecret=/config/jwt-secret.txt \
 	--gcmode=archive \
-  --state.scheme=hash \
+	--state.scheme=hash \
 	--metrics \
 	--metrics.addr=0.0.0.0 \
 	--metrics.port=6060 \

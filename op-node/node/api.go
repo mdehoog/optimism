@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -99,22 +100,24 @@ func (n *adminAPI) OverrideLeader(ctx context.Context) error {
 }
 
 type nodeAPI struct {
-	config *rollup.Config
-	client l2EthClient
-	dr     driverClient
-	safeDB SafeDBReader
-	log    log.Logger
-	m      metrics.RPCMetricer
+	config    *rollup.Config
+	client    l2EthClient
+	dr        driverClient
+	safeDB    SafeDBReader
+	witnessDB engine.WitnessDB
+	log       log.Logger
+	m         metrics.RPCMetricer
 }
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, witnessDB engine.WitnessDB, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
 	return &nodeAPI{
-		config: config,
-		client: l2Client,
-		dr:     dr,
-		safeDB: safeDB,
-		log:    log,
-		m:      m,
+		config:    config,
+		client:    l2Client,
+		dr:        dr,
+		safeDB:    safeDB,
+		witnessDB: witnessDB,
+		log:       log,
+		m:         m,
 	}
 }
 
@@ -139,6 +142,27 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 		StateRoot:             common.Hash(output.StateRoot),
 		Status:                status,
 	}, nil
+}
+
+func (n *nodeAPI) WitnessAtBlock(ctx context.Context, blockHash common.Hash) (hexutil.Bytes, error) {
+	recordDur := n.m.RecordRPCServerRequest("optimism_witnessAtBlock")
+	defer recordDur()
+
+	witness, err := n.witnessDB.GetWitness(ctx, blockHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get witness at block %s: %w", blockHash, err)
+	}
+	return witness, nil
+}
+
+func (n *nodeAPI) PurgeOldWitnesses(ctx context.Context, beforeBlockNumber hexutil.Uint64) error {
+	recordDur := n.m.RecordRPCServerRequest("optimism_clearWitnesses")
+	defer recordDur()
+	err := n.witnessDB.PurgeOldWitnesses(ctx, uint64(beforeBlockNumber))
+	if err != nil {
+		return fmt.Errorf("failed to purge witnesses before block %d: %w", beforeBlockNumber, err)
+	}
+	return nil
 }
 
 func (n *nodeAPI) SafeHeadAtL1Block(ctx context.Context, number hexutil.Uint64) (*eth.SafeHeadResponse, error) {

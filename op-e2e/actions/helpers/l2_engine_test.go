@@ -58,7 +58,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	require.NoError(t, err)
 
 	// apply the payload
-	status, err := l2Cl.NewPayload(t.Ctx(), payloadA.ExecutionPayload, payloadA.ParentBeaconBlockRoot)
+	status, err := l2Cl.NewPayload(t.Ctx(), payloadA.ExecutionPayload, payloadA.ParentBeaconBlockRoot, false)
 	require.NoError(t, err)
 	require.Equal(t, eth.ExecutionValid, status.Status)
 	require.Equal(t, genesisBlock.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
@@ -68,7 +68,7 @@ func TestL2EngineAPI(gt *testing.T) {
 		HeadBlockHash:      payloadA.ExecutionPayload.BlockHash,
 		SafeBlockHash:      genesisBlock.Hash(),
 		FinalizedBlockHash: genesisBlock.Hash(),
-	}, nil)
+	}, nil, false)
 	require.NoError(t, err)
 
 	require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
@@ -87,7 +87,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	require.NoError(t, err)
 
 	// apply the payload
-	status, err = l2Cl.NewPayload(t.Ctx(), payloadB.ExecutionPayload, payloadB.ParentBeaconBlockRoot)
+	status, err = l2Cl.NewPayload(t.Ctx(), payloadB.ExecutionPayload, payloadB.ParentBeaconBlockRoot, false)
 	require.NoError(t, err)
 	require.Equal(t, status.Status, eth.ExecutionValid)
 	require.Equal(t, payloadA.ExecutionPayload.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
@@ -97,7 +97,7 @@ func TestL2EngineAPI(gt *testing.T) {
 		HeadBlockHash:      payloadB.ExecutionPayload.BlockHash,
 		SafeBlockHash:      genesisBlock.Hash(),
 		FinalizedBlockHash: genesisBlock.Hash(),
-	}, nil)
+	}, nil, false)
 	require.NoError(t, err)
 	require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
 	require.Equal(t, payloadB.ExecutionPayload.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "now payload B is canonical")
@@ -166,7 +166,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 			GasLimit:              (*eth.Uint64Quantity)(&sd.RollupCfg.Genesis.SystemConfig.GasLimit),
 			Withdrawals:           w,
 			ParentBeaconBlockRoot: parentBeaconBlockRoot,
-		})
+		}, false)
 		require.NoError(t, err)
 		require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
 		require.NotNil(t, fcRes.PayloadID, "building a block now")
@@ -181,7 +181,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 		require.Equal(t, parent.Hash(), payload.ParentHash, "block builds on parent block")
 
 		// apply the payload
-		status, err := l2Cl.NewPayload(t.Ctx(), payload, envelope.ParentBeaconBlockRoot)
+		status, err := l2Cl.NewPayload(t.Ctx(), payload, envelope.ParentBeaconBlockRoot, false)
 		require.NoError(t, err)
 		require.Equal(t, status.Status, eth.ExecutionValid)
 		require.Equal(t, parent.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
@@ -191,7 +191,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 			HeadBlockHash:      payload.BlockHash,
 			SafeBlockHash:      genesisBlock.Hash(),
 			FinalizedBlockHash: genesisBlock.Hash(),
-		}, nil)
+		}, nil, false)
 		require.NoError(t, err)
 		require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
 		require.Equal(t, payload.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "now payload is canonical")

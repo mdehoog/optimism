@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/triedb"
 )
 
 type OracleBackedL2Chain struct {
@@ -170,7 +171,7 @@ func (o *OracleBackedL2Chain) Engine() consensus.Engine {
 }
 
 func (o *OracleBackedL2Chain) StateAt(root common.Hash) (*state.StateDB, error) {
-	stateDB, err := state.New(root, state.NewDatabase(rawdb.NewDatabase(o.db)), nil)
+	stateDB, err := state.New(root, state.NewDatabase(triedb.NewDatabase(rawdb.NewDatabase(o.db), nil), nil))
 	if err != nil {
 		return nil, err
 	}

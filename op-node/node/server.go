@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -27,8 +28,8 @@ type rpcServer struct {
 	sources.L2Client
 }
 
-func newRPCServer(rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, dr driverClient, safedb SafeDBReader, log log.Logger, appVersion string, m metrics.Metricer) (*rpcServer, error) {
-	api := NewNodeAPI(rollupCfg, l2Client, dr, safedb, log.New("rpc", "node"), m)
+func newRPCServer(rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, dr driverClient, safedb SafeDBReader, witnessdb engine.WitnessDB, log log.Logger, appVersion string, m metrics.Metricer) (*rpcServer, error) {
+	api := NewNodeAPI(rollupCfg, l2Client, dr, safedb, witnessdb, log.New("rpc", "node"), m)
 	// TODO: extend RPC config with options for WS, IPC and HTTP RPC connections
 	endpoint := net.JoinHostPort(rpcCfg.ListenAddr, strconv.Itoa(rpcCfg.ListenPort))
 	r := &rpcServer{

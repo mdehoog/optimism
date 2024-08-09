@@ -174,6 +174,8 @@ func (d *Sequencer) OnEvent(ev event.Event) bool {
 		d.onPayloadSealInvalid(x)
 	case engine.PayloadSealExpiredErrorEvent:
 		d.onPayloadSealExpiredError(x)
+	case engine.RecordWitnessErrorEvent:
+		d.onRecordWitnessError(x)
 	case engine.PayloadInvalidEvent:
 		d.onPayloadInvalid(x)
 	case engine.PayloadSuccessEvent:
@@ -306,6 +308,15 @@ func (d *Sequencer) onPayloadSealExpiredError(x engine.PayloadSealExpiredErrorEv
 		"payloadID", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
 	// Restart building, this way we get a block we should be able to seal
 	// (smaller, since we adapt build time).
+	d.handleInvalid()
+}
+
+func (d *Sequencer) onRecordWitnessError(x engine.RecordWitnessErrorEvent) {
+	if d.latest.Info != x.Info {
+		return // not our payload, should be ignored.
+	}
+	d.log.Error("Sequencer could not record witness",
+		"payloadID", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
 	d.handleInvalid()
 }
 

@@ -316,6 +316,12 @@ var (
 		EnvVars:  prefixEnvVars("SAFEDB_PATH"),
 		Category: OperationsCategory,
 	}
+	WitnessDBPath = &cli.StringFlag{
+		Name:     "witnessdb.path",
+		Usage:    "File path used to persist witness data.",
+		EnvVars:  prefixEnvVars("WITNESSDB_PATH"),
+		Category: OperationsCategory,
+	}
 	/* Deprecated Flags */
 	L2EngineSyncEnabled = &cli.BoolFlag{
 		Name:    "l2.engine-sync",
@@ -418,6 +424,7 @@ var optionalFlags = []cli.Flag{
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,
 	SafeDBPath,
+	WitnessDBPath,
 	L2EngineKind,
 }
 

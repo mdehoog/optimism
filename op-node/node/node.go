@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/witnessdb"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p/core/peer"
 
@@ -64,7 +66,8 @@ type OpNode struct {
 	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
 
-	safeDB closableSafeDB
+	safeDB    closableSafeDB
+	witnessDB engine.WitnessDB
 
 	rollupHalt string // when to halt the rollup, disabled if empty
 
@@ -414,6 +417,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to get altDA config: %w", err)
 	}
 	altDA := altda.NewAltDA(n.log, cfg.AltDA, rpCfg, n.metrics.AltDAMetrics)
+
 	if cfg.SafeDBPath != "" {
 		n.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
 		safeDB, err := safedb.NewSafeDB(n.log, cfg.SafeDBPath)
@@ -424,13 +428,22 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	} else {
 		n.safeDB = safedb.Disabled
 	}
+
+	if cfg.WitnessDBPath != "" {
+		witnessDB, err := witnessdb.NewWitnessDB(n.log, cfg.WitnessDBPath)
+		if err != nil {
+			return fmt.Errorf("failed to create witness database at %v: %w", cfg.WitnessDBPath, err)
+		}
+		n.witnessDB = witnessDB
+	}
+
 	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source,
-		n.supervisor, n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA)
+		n.supervisor, n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, n.witnessDB, &cfg.Sync, sequencerConductor, altDA)
 	return nil
 }
 
 func (n *OpNode) initRPCServer(cfg *Config) error {
-	server, err := newRPCServer(&cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.safeDB, n.log, n.appVersion, n.metrics)
+	server, err := newRPCServer(&cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.safeDB, n.witnessDB, n.log, n.appVersion, n.metrics)
 	if err != nil {
 		return err
 	}
@@ -714,6 +727,12 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	if n.safeDB != nil {
 		if err := n.safeDB.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close safe head db: %w", err))
+		}
+	}
+
+	if n.witnessDB != nil {
+		if err := n.witnessDB.Close(); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close witness db: %w", err))
 		}
 	}
 

@@ -170,6 +170,7 @@ func NewDriver(
 	metrics Metrics,
 	sequencerStateListener sequencing.SequencerStateListener,
 	safeHeadListener rollup.SafeHeadListener,
+	witnessDB engine.WitnessDB,
 	syncCfg *sync.Config,
 	sequencerConductor conductor.SequencerConductor,
 	altDA AltDAIface,
@@ -195,7 +196,7 @@ func NewDriver(
 	l1 = NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg,
+	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg, witnessDB,
 		sys.Register("engine-controller", nil, opts))
 
 	sys.Register("engine-reset",

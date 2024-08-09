@@ -80,7 +80,7 @@ func (s *EngineAPIClient) EngineVersionProvider() EngineVersionProvider { return
 // 1. Processing error: ForkchoiceUpdatedResult.PayloadStatusV1.ValidationError or other non-success PayloadStatusV1,
 // 2. `error` as eth.InputError: the forkchoice state or attributes are not valid.
 // 3. Other types of `error`: temporary RPC errors, like timeouts.
-func (s *EngineAPIClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceState, attributes *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+func (s *EngineAPIClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceState, attributes *eth.PayloadAttributes, witness bool) (*eth.ForkchoiceUpdatedResult, error) {
 	llog := s.log.New("state", fc)       // local logger
 	tlog := llog.New("attr", attributes) // trace logger
 	tlog.Trace("Sharing forkchoice-updated signal")
@@ -88,7 +88,7 @@ func (s *EngineAPIClient) ForkchoiceUpdate(ctx context.Context, fc *eth.Forkchoi
 	defer cancel()
 	var result eth.ForkchoiceUpdatedResult
 	method := s.evp.ForkchoiceUpdatedVersion(attributes)
-	err := s.RPC.CallContext(fcCtx, &result, string(method), fc, attributes)
+	err := s.RPC.CallContext(fcCtx, &result, method.WithWitness(witness), fc, attributes)
 	if err == nil {
 		tlog.Trace("Shared forkchoice-updated signal")
 		if attributes != nil { // block building is optional, we only get a payload ID if we are building a block
@@ -116,7 +116,7 @@ func (s *EngineAPIClient) ForkchoiceUpdate(ctx context.Context, fc *eth.Forkchoi
 // NewPayload executes a full block on the execution engine.
 // This returns a PayloadStatusV1 which encodes any validation/processing error,
 // and this type of error is kept separate from the returned `error` used for RPC errors, like timeouts.
-func (s *EngineAPIClient) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+func (s *EngineAPIClient) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash, witness bool) (*eth.PayloadStatusV1, error) {
 	e := s.log.New("block_hash", payload.BlockHash)
 	e.Trace("sending payload for execution")
 
@@ -127,9 +127,9 @@ func (s *EngineAPIClient) NewPayload(ctx context.Context, payload *eth.Execution
 	var err error
 	switch method := s.evp.NewPayloadVersion(uint64(payload.Timestamp)); method {
 	case eth.NewPayloadV3:
-		err = s.RPC.CallContext(execCtx, &result, string(method), payload, []common.Hash{}, parentBeaconBlockRoot)
+		err = s.RPC.CallContext(execCtx, &result, method.WithWitness(witness), payload, []common.Hash{}, parentBeaconBlockRoot)
 	case eth.NewPayloadV2:
-		err = s.RPC.CallContext(execCtx, &result, string(method), payload)
+		err = s.RPC.CallContext(execCtx, &result, method.WithWitness(witness), payload)
 	default:
 		return nil, fmt.Errorf("unsupported NewPayload version: %s", method)
 	}

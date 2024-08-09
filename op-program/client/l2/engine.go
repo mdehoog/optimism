@@ -65,7 +65,7 @@ func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadIn
 	return res, nil
 }
 
-func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes, witness bool) (*eth.ForkchoiceUpdatedResult, error) {
 	switch method := o.rollupCfg.ForkchoiceUpdatedVersion(attr); method {
 	case eth.FCUV3:
 		return o.api.ForkchoiceUpdatedV3(ctx, state, attr)
@@ -78,7 +78,7 @@ func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.Forkchoi
 	}
 }
 
-func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash, witness bool) (*eth.PayloadStatusV1, error) {
 	switch method := o.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)); method {
 	case eth.NewPayloadV3:
 		return o.api.NewPayloadV3(ctx, payload, []common.Hash{}, parentBeaconBlockRoot)

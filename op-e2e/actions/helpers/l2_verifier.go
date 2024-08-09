@@ -115,7 +115,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 
 	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg,
+	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg, nil,
 		sys.Register("engine-controller", nil, opts))
 
 	sys.Register("engine-reset",
@@ -187,7 +187,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	apis := []rpc.API{
 		{
 			Namespace:     "optimism",
-			Service:       node.NewNodeAPI(cfg, eng, backend, safeHeadListener, log, m),
+			Service:       node.NewNodeAPI(cfg, eng, backend, safeHeadListener, nil, log, m),
 			Public:        true,
 			Authenticated: false,
 		},
