@@ -307,7 +307,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         to set the token address. This prevents the token address from being changed
     ///         and makes it explicitly opt-in to use custom gas token.
     /// @param _token Address of the gas paying token.
-    function _setGasPayingToken(address _token) internal virtual {
+    function _setGasPayingToken(uint256 _chainId, address _token) internal virtual {
         if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken()) {
             require(
                 ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
@@ -318,6 +318,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
             // Set the gas paying token in storage and in the OptimismPortal.
             GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
             OptimismPortal(payable(optimismPortal())).setGasPayingToken({
+                _chainId: _chainId,
                 _token: _token,
                 _decimals: GAS_PAYING_TOKEN_DECIMALS,
                 _name: name,

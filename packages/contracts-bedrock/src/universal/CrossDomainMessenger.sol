@@ -173,7 +173,7 @@ abstract contract CrossDomainMessenger is
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message to trigger the target address with.
     /// @param _minGasLimit Minimum gas limit that the message can be executed with.
-    function sendMessage(address _target, bytes calldata _message, uint32 _minGasLimit) external payable {
+    function sendMessage(uint256 _chainId, address _target, bytes calldata _message, uint32 _minGasLimit) external payable {
         if (isCustomGasToken()) {
             require(msg.value == 0, "CrossDomainMessenger: cannot send value with custom gas token");
         }
@@ -183,6 +183,7 @@ abstract contract CrossDomainMessenger is
         // guarantee the property that the call to the target contract will always have at least
         // the minimum gas limit specified by the user.
         _sendMessage({
+            _chainId: _chainId,
             _to: address(otherMessenger),
             _gasLimit: baseGas(_message, _minGasLimit),
             _value: msg.value,
@@ -391,7 +392,7 @@ abstract contract CrossDomainMessenger is
     /// @param _gasLimit Minimum gas limit the message can be executed with.
     /// @param _value    Amount of ETH to send with the message.
     /// @param _data     Message data.
-    function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal virtual;
+    function _sendMessage(uint256 _chainId, address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal virtual;
 
     /// @notice Checks whether the message is coming from the other messenger. Implemented by child
     ///         contracts because the logic for this depends on the network where the messenger is

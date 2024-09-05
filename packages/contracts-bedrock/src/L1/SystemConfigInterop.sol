@@ -74,7 +74,7 @@ contract SystemConfigInterop is SystemConfig {
     ///         OptimismPortal's address must be non zero, since otherwise the call to set the
     ///         config for the gas paying token to OptimismPortal will fail.
     /// @param _token Address of the gas paying token.
-    function _setGasPayingToken(address _token) internal override {
+    function _setGasPayingToken(uint256 _chainId, address _token) internal override {
         if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken()) {
             require(
                 ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
@@ -85,6 +85,7 @@ contract SystemConfigInterop is SystemConfig {
             // Set the gas paying token in storage and in the OptimismPortal.
             GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
             OptimismPortal(payable(optimismPortal())).setConfig(
+                _chainId,
                 ConfigType.SET_GAS_PAYING_TOKEN,
                 StaticConfig.encodeSetGasPayingToken({
                     _token: _token,

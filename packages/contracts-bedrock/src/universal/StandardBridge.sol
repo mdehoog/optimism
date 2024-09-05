@@ -168,8 +168,8 @@ abstract contract StandardBridge is Initializable {
     /// @param _extraData   Extra data to be sent with the transaction. Note that the recipient will
     ///                     not be triggered with this data, but it will be emitted and can be used
     ///                     to identify the transaction.
-    function bridgeETH(uint32 _minGasLimit, bytes calldata _extraData) public payable onlyEOA {
-        _initiateBridgeETH(msg.sender, msg.sender, msg.value, _minGasLimit, _extraData);
+    function bridgeETH(uint256 _chainId, uint32 _minGasLimit, bytes calldata _extraData) public payable onlyEOA {
+        _initiateBridgeETH(_chainId, msg.sender, msg.sender, msg.value, _minGasLimit, _extraData);
     }
 
     /// @notice Sends ETH to a receiver's address on the other chain. Note that if ETH is sent to a
@@ -184,8 +184,8 @@ abstract contract StandardBridge is Initializable {
     /// @param _extraData   Extra data to be sent with the transaction. Note that the recipient will
     ///                     not be triggered with this data, but it will be emitted and can be used
     ///                     to identify the transaction.
-    function bridgeETHTo(address _to, uint32 _minGasLimit, bytes calldata _extraData) public payable {
-        _initiateBridgeETH(msg.sender, _to, msg.value, _minGasLimit, _extraData);
+    function bridgeETHTo(uint256 _chainId, address _to, uint32 _minGasLimit, bytes calldata _extraData) public payable {
+        _initiateBridgeETH(_chainId, msg.sender, _to, msg.value, _minGasLimit, _extraData);
     }
 
     /// @notice Sends ERC20 tokens to the sender's address on the other chain.
@@ -197,6 +197,7 @@ abstract contract StandardBridge is Initializable {
     ///                     not be triggered with this data, but it will be emitted and can be used
     ///                     to identify the transaction.
     function bridgeERC20(
+        uint256 _chainId,
         address _localToken,
         address _remoteToken,
         uint256 _amount,
@@ -207,7 +208,7 @@ abstract contract StandardBridge is Initializable {
         virtual
         onlyEOA
     {
-        _initiateBridgeERC20(_localToken, _remoteToken, msg.sender, msg.sender, _amount, _minGasLimit, _extraData);
+        _initiateBridgeERC20(_chainId, _localToken, _remoteToken, msg.sender, msg.sender, _amount, _minGasLimit, _extraData);
     }
 
     /// @notice Sends ERC20 tokens to a receiver's address on the other chain.
@@ -220,6 +221,7 @@ abstract contract StandardBridge is Initializable {
     ///                     not be triggered with this data, but it will be emitted and can be used
     ///                     to identify the transaction.
     function bridgeERC20To(
+        uint256 _chainId,
         address _localToken,
         address _remoteToken,
         address _to,
@@ -230,7 +232,7 @@ abstract contract StandardBridge is Initializable {
         public
         virtual
     {
-        _initiateBridgeERC20(_localToken, _remoteToken, msg.sender, _to, _amount, _minGasLimit, _extraData);
+        _initiateBridgeERC20(_chainId, _localToken, _remoteToken, msg.sender, _to, _amount, _minGasLimit, _extraData);
     }
 
     /// @notice Finalizes an ETH bridge on this chain. Can only be triggered by the other
@@ -313,6 +315,7 @@ abstract contract StandardBridge is Initializable {
     ///                     not be triggered with this data, but it will be emitted and can be used
     ///                     to identify the transaction.
     function _initiateBridgeETH(
+        uint256 _chainId,
         address _from,
         address _to,
         uint256 _amount,
@@ -329,6 +332,7 @@ abstract contract StandardBridge is Initializable {
         _emitETHBridgeInitiated(_from, _to, _amount, _extraData);
 
         messenger.sendMessage{ value: _amount }({
+            _chainId: _chainId,
             _target: address(otherBridge),
             _message: abi.encodeWithSelector(this.finalizeBridgeETH.selector, _from, _to, _amount, _extraData),
             _minGasLimit: _minGasLimit
@@ -345,6 +349,7 @@ abstract contract StandardBridge is Initializable {
     ///                     not be triggered with this data, but it will be emitted and can be used
     ///                     to identify the transaction.
     function _initiateBridgeERC20(
+        uint256 _chainId,
         address _localToken,
         address _remoteToken,
         address _from,
@@ -374,6 +379,7 @@ abstract contract StandardBridge is Initializable {
         _emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
 
         messenger.sendMessage({
+            _chainId: _chainId,
             _target: address(otherBridge),
             _message: abi.encodeWithSelector(
                 this.finalizeBridgeERC20.selector,

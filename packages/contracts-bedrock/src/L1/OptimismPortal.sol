@@ -108,7 +108,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param to         Address that the deposit transaction is directed to.
     /// @param version    Version of this deposit transaction event.
     /// @param opaqueData ABI encoded deposit data to be parsed off-chain.
-    event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
+    event TransactionDeposited(uint256 indexed chainId, address indexed from, address indexed to, uint256 version, bytes opaqueData);
 
     /// @notice Emitted when a withdrawal transaction is proven.
     /// @param withdrawalHash Hash of the withdrawal transaction.
@@ -203,7 +203,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     ///         function for EOAs. Contracts should call the depositTransaction() function directly
     ///         otherwise any deposited funds will be lost due to address aliasing.
     receive() external payable {
-        depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));
+        revert();
     }
 
     /// @notice Accepts ETH value without triggering a deposit to L2.
@@ -440,6 +440,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param _isCreation Whether or not the transaction is a contract creation.
     /// @param _data       Data to trigger the recipient with.
     function depositERC20Transaction(
+        uint256 _chainId,
         address _to,
         uint256 _mint,
         uint256 _value,
@@ -469,6 +470,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         }
 
         _depositTransaction({
+            _chainId: _chainId,
             _to: _to,
             _mint: _mint,
             _value: _value,
@@ -488,6 +490,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param _isCreation Whether or not the transaction is a contract creation.
     /// @param _data       Data to trigger the recipient with.
     function depositTransaction(
+        uint256 _chainId,
         address _to,
         uint256 _value,
         uint64 _gasLimit,
@@ -502,6 +505,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         if (token != Constants.ETHER && msg.value != 0) revert NoValue();
 
         _depositTransaction({
+            _chainId: _chainId,
             _to: _to,
             _mint: msg.value,
             _value: _value,
@@ -519,6 +523,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param _isCreation Whether or not the transaction is a contract creation.
     /// @param _data       Data to trigger the recipient with.
     function _depositTransaction(
+        uint256 _chainId,
         address _to,
         uint256 _mint,
         uint256 _value,
@@ -555,12 +560,12 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
-        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
+        emit TransactionDeposited(_chainId, from, _to, DEPOSIT_VERSION, opaqueData);
     }
 
     /// @notice Sets the gas paying token for the L2 system. This token is used as the
     ///         L2 native asset. Only the SystemConfig contract can call this function.
-    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
+    function setGasPayingToken(uint256 _chainId, address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
@@ -570,6 +575,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // Emit the special deposit transaction directly that sets the gas paying
         // token in the L1Block predeploy contract.
         emit TransactionDeposited(
+            _chainId,
             Constants.DEPOSITOR_ACCOUNT,
             Predeploys.L1_BLOCK_ATTRIBUTES,
             DEPOSIT_VERSION,
