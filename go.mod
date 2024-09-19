@@ -15,6 +15,7 @@ require (
 	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240910145426-b3905c89e8ac
 	github.com/ethereum/go-ethereum v1.14.8
 	github.com/fsnotify/fsnotify v1.7.0
+	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb
 	github.com/google/go-cmp v0.6.0
 	github.com/google/gofuzz v1.2.1-0.20220503160820-4a35382e8fc8
@@ -110,7 +111,6 @@ require (
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
@@ -257,7 +257,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.14.8 => github.com/ethereum-optimism/op-geth v1.101408.0-rc.4.0.20240827042333-110c433a2469
+replace github.com/ethereum/go-ethereum v1.14.8 => github.com/mdehoog/op-geth v0.0.0-20240917020810-c52feac9d41e
 
 // replace github.com/ethereum/go-ethereum => ../op-geth
 
