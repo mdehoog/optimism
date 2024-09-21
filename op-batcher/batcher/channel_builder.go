@@ -34,14 +34,14 @@ func (e *ChannelFullError) Unwrap() error {
 	return e.Err
 }
 
-type frameID struct {
-	chID        derive.ChannelID
-	frameNumber uint16
+type FrameID struct {
+	ChID        derive.ChannelID
+	FrameNumber uint16
 }
 
-type frameData struct {
-	data []byte
-	id   frameID
+type FrameData struct {
+	Data []byte
+	ID   FrameID
 }
 
 // ChannelBuilder uses a ChannelOut to create a channel with output frame
@@ -75,7 +75,7 @@ type ChannelBuilder struct {
 	// oldestL2 is the oldest L2 block of all the L2 blocks that have been added to the channel
 	oldestL2 eth.BlockID
 	// frames data queue, to be send as txs
-	frames []frameData
+	frames []FrameData
 	// total frames counter
 	numFrames int
 	// total amount of output data of all frames created yet
@@ -382,13 +382,13 @@ func (c *ChannelBuilder) outputFrame() error {
 		c.setFullErr(ErrMaxFrameIndex)
 	}
 
-	frame := frameData{
-		id:   frameID{chID: c.co.ID(), frameNumber: fn},
-		data: buf.Bytes(),
+	frame := FrameData{
+		ID:   FrameID{ChID: c.co.ID(), FrameNumber: fn},
+		Data: buf.Bytes(),
 	}
 	c.frames = append(c.frames, frame)
 	c.numFrames++
-	c.outputBytes += len(frame.data)
+	c.outputBytes += len(frame.Data)
 	return err // possibly io.EOF (last frame)
 }
 
@@ -424,7 +424,7 @@ func (c *ChannelBuilder) PendingFrames() int {
 // NextFrame returns the next available frame.
 // HasFrame must be called prior to check if there's a next frame available.
 // Panics if called when there's no next frame.
-func (c *ChannelBuilder) NextFrame() frameData {
+func (c *ChannelBuilder) NextFrame() FrameData {
 	if len(c.frames) == 0 {
 		panic("no next frame")
 	}
@@ -436,9 +436,9 @@ func (c *ChannelBuilder) NextFrame() frameData {
 
 // PushFrames adds the frames back to the internal frames queue. Panics if not of
 // the same channel.
-func (c *ChannelBuilder) PushFrames(frames ...frameData) {
+func (c *ChannelBuilder) PushFrames(frames ...FrameData) {
 	for _, f := range frames {
-		if f.id.chID != c.ID() {
+		if f.ID.ChID != c.ID() {
 			panic("wrong channel")
 		}
 		c.frames = append(c.frames, f)

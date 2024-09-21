@@ -27,30 +27,30 @@ import (
 
 var (
 	ErrBatcherNotRunning = errors.New("batcher is not running")
-	emptyTxData          = txData{
-		frames: []frameData{
+	emptyTxData          = TxData{
+		Frames: []FrameData{
 			{
-				data: []byte{},
+				Data: []byte{},
 			},
 		},
 	}
 )
 
 type txRef struct {
-	id       txID
+	id       TxID
 	isCancel bool
 	isBlob   bool
 }
 
 func (r txRef) String() string {
-	return r.string(func(id txID) string { return id.String() })
+	return r.string(func(id TxID) string { return id.String() })
 }
 
 func (r txRef) TerminalString() string {
-	return r.string(func(id txID) string { return id.TerminalString() })
+	return r.string(func(id TxID) string { return id.TerminalString() })
 }
 
-func (r txRef) string(txIDStringer func(txID) string) string {
+func (r txRef) string(txIDStringer func(TxID) string) string {
 	if r.isCancel {
 		if r.isBlob {
 			return "blob-cancellation"
@@ -110,7 +110,7 @@ type BatchSubmitter struct {
 	lastStoredBlock eth.BlockID
 	lastL1Tip       eth.L1BlockRef
 
-	state *channelManager
+	state ChannelManager
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter driver from a preconfigured DriverSetup
@@ -586,16 +586,16 @@ func (l *BatchSubmitter) cancelBlockingTx(queue *txmgr.Queue[txRef], receiptsCh 
 		panic(err) // this error should not happen
 	}
 	l.Log.Warn("sending a cancellation transaction to unblock txpool", "blocked_blob", isBlockedBlob)
-	l.sendTx(txData{}, true, candidate, queue, receiptsCh)
+	l.sendTx(TxData{}, true, candidate, queue, receiptsCh)
 }
 
 // publishToAltDAAndL1 posts the txdata to the DA Provider and then sends the commitment to L1.
-func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) {
+func (l *BatchSubmitter) publishToAltDAAndL1(txdata TxData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) {
 	// sanity checks
-	if nf := len(txdata.frames); nf != 1 {
+	if nf := len(txdata.Frames); nf != 1 {
 		l.Log.Crit("Unexpected number of frames in calldata tx", "num_frames", nf)
 	}
-	if txdata.asBlob {
+	if txdata.AsBlob {
 		l.Log.Crit("Unexpected blob txdata with AltDA enabled")
 	}
 
@@ -627,10 +627,10 @@ func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[t
 	}
 }
 
-// sendTransaction creates & queues for sending a transaction to the batch inbox address with the given `txData`.
+// sendTransaction creates & queues for sending a transaction to the batch inbox address with the given `TxData`.
 // This call will block if the txmgr queue is at the  max-pending limit.
 // The method will block if the queue's MaxPendingTransactions is exceeded.
-func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) error {
+func (l *BatchSubmitter) sendTransaction(txdata TxData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) error {
 	var err error
 
 	// if Alt DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
@@ -641,7 +641,7 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txRef
 	}
 
 	var candidate *txmgr.TxCandidate
-	if txdata.asBlob {
+	if txdata.AsBlob {
 		if candidate, err = l.blobTxCandidate(txdata); err != nil {
 			// We could potentially fall through and try a calldata tx instead, but this would
 			// likely result in the chain spending more in gas fees than it is tuned for, so best
@@ -651,7 +651,7 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txRef
 		}
 	} else {
 		// sanity check
-		if nf := len(txdata.frames); nf != 1 {
+		if nf := len(txdata.Frames); nf != 1 {
 			l.Log.Crit("Unexpected number of frames in calldata tx", "num_frames", nf)
 		}
 		candidate = l.calldataTxCandidate(txdata.CallData())
@@ -663,7 +663,7 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txRef
 
 // sendTx uses the txmgr queue to send the given transaction candidate after setting its
 // gaslimit. It will block if the txmgr queue has reached its MaxPendingTransactions limit.
-func (l *BatchSubmitter) sendTx(txdata txData, isCancel bool, candidate *txmgr.TxCandidate, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) {
+func (l *BatchSubmitter) sendTx(txdata TxData, isCancel bool, candidate *txmgr.TxCandidate, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) {
 	intrinsicGas, err := core.IntrinsicGas(candidate.TxData, nil, false, true, true, false)
 	if err != nil {
 		// we log instead of return an error here because txmgr can do its own gas estimation
@@ -672,16 +672,16 @@ func (l *BatchSubmitter) sendTx(txdata txData, isCancel bool, candidate *txmgr.T
 		candidate.GasLimit = intrinsicGas
 	}
 
-	queue.Send(txRef{id: txdata.ID(), isCancel: isCancel, isBlob: txdata.asBlob}, *candidate, receiptsCh)
+	queue.Send(txRef{id: txdata.ID(), isCancel: isCancel, isBlob: txdata.AsBlob}, *candidate, receiptsCh)
 }
 
-func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error) {
+func (l *BatchSubmitter) blobTxCandidate(data TxData) (*txmgr.TxCandidate, error) {
 	blobs, err := data.Blobs()
 	if err != nil {
 		return nil, fmt.Errorf("generating blobs for tx data: %w", err)
 	}
 	size := data.Len()
-	lastSize := len(data.frames[len(data.frames)-1].data)
+	lastSize := len(data.Frames[len(data.Frames)-1].Data)
 	l.Log.Info("Building Blob transaction candidate",
 		"size", size, "last_size", lastSize, "num_blobs", len(blobs))
 	l.Metr.RecordBlobUsedBytes(lastSize)
@@ -716,19 +716,19 @@ func (l *BatchSubmitter) recordL1Tip(l1tip eth.L1BlockRef) {
 	l.Metr.RecordLatestL1Block(l1tip)
 }
 
-func (l *BatchSubmitter) recordFailedDARequest(id txID, err error) {
+func (l *BatchSubmitter) recordFailedDARequest(id TxID, err error) {
 	if err != nil {
 		l.Log.Warn("DA request failed", logFields(id, err)...)
 	}
 	l.state.TxFailed(id)
 }
 
-func (l *BatchSubmitter) recordFailedTx(id txID, err error) {
+func (l *BatchSubmitter) recordFailedTx(id TxID, err error) {
 	l.Log.Warn("Transaction failed to send", logFields(id, err)...)
 	l.state.TxFailed(id)
 }
 
-func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
+func (l *BatchSubmitter) recordConfirmedTx(id TxID, receipt *types.Receipt) {
 	l.Log.Info("Transaction confirmed", logFields(id, receipt)...)
 	l1block := eth.ReceiptBlockID(receipt)
 	l.state.TxConfirmed(id, l1block)
@@ -766,7 +766,7 @@ func (l *BatchSubmitter) checkTxpool(queue *txmgr.Queue[txRef], receiptsCh chan 
 func logFields(xs ...any) (fs []any) {
 	for _, x := range xs {
 		switch v := x.(type) {
-		case txID:
+		case TxID:
 			fs = append(fs, "tx_id", v.String())
 		case *types.Receipt:
 			fs = append(fs, "tx", v.TxHash, "block", eth.ReceiptBlockID(v))

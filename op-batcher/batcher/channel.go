@@ -21,9 +21,9 @@ type channel struct {
 
 	// pending channel builder
 	channelBuilder *ChannelBuilder
-	// Set of unconfirmed txID -> tx data. For tx resubmission
-	pendingTransactions map[string]txData
-	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
+	// Set of unconfirmed TxID -> tx data. For tx resubmission
+	pendingTransactions map[string]TxData
+	// Set of confirmed TxID -> inclusion block. For determining if the channel is timed out
 	confirmedTransactions map[string]eth.BlockID
 
 	// True if confirmed TX list is updated. Set to false after updated min/max inclusion blocks.
@@ -45,7 +45,7 @@ func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollup
 		metr:                  metr,
 		cfg:                   cfg,
 		channelBuilder:        cb,
-		pendingTransactions:   make(map[string]txData),
+		pendingTransactions:   make(map[string]TxData),
 		confirmedTransactions: make(map[string]eth.BlockID),
 	}, nil
 }
@@ -58,7 +58,7 @@ func (s *channel) TxFailed(id string) {
 		// Note: when the batcher is changed to send multiple frames per tx,
 		// this needs to be changed to iterate over all frames of the tx data
 		// and re-queue them.
-		s.channelBuilder.PushFrames(data.Frames()...)
+		s.channelBuilder.PushFrames(data.Frames...)
 		delete(s.pendingTransactions, id)
 	} else {
 		s.log.Warn("unknown transaction marked as failed", "id", id)
@@ -156,21 +156,21 @@ func (s *channel) ID() derive.ChannelID {
 }
 
 // NextTxData returns the next tx data packet.
-// If cfg.MultiFrameTxs is false, it returns txData with a single frame.
+// If cfg.MultiFrameTxs is false, it returns TxData with a single frame.
 // If cfg.MultiFrameTxs is true, it will read frames from its channel builder
 // until it either doesn't have more frames or the target number of frames is reached.
 //
 // NextTxData should only be called after HasTxData returned true.
-func (s *channel) NextTxData() txData {
+func (s *channel) NextTxData() TxData {
 	nf := s.cfg.MaxFramesPerTx()
-	txdata := txData{frames: make([]frameData, 0, nf), asBlob: s.cfg.UseBlobs}
+	txdata := TxData{Frames: make([]FrameData, 0, nf), AsBlob: s.cfg.UseBlobs}
 	for i := 0; i < nf && s.channelBuilder.HasFrame(); i++ {
 		frame := s.channelBuilder.NextFrame()
-		txdata.frames = append(txdata.frames, frame)
+		txdata.Frames = append(txdata.Frames, frame)
 	}
 
 	id := txdata.ID().String()
-	s.log.Debug("returning next tx data", "id", id, "num_frames", len(txdata.frames), "as_blob", txdata.asBlob)
+	s.log.Debug("returning next tx data", "id", id, "num_frames", len(txdata.Frames), "as_blob", txdata.AsBlob)
 	s.pendingTransactions[id] = txdata
 
 	return txdata

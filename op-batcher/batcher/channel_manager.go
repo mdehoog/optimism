@@ -17,6 +17,16 @@ import (
 
 var ErrReorg = errors.New("block does not extend existing chain")
 
+type ChannelManager interface {
+	ConfigProvider() ChannelConfigProvider
+	Clear(l1OriginLastClosedChannel eth.BlockID)
+	AddL2Block(block *types.Block) error
+	Close() error
+	TxData(l1Head eth.BlockID) (TxData, error)
+	TxFailed(_id TxID)
+	TxConfirmed(_id TxID, inclusionBlock eth.BlockID)
+}
+
 // channelManager stores a contiguous set of blocks & turns them into channels.
 // Upon receiving tx confirmation (or a tx failure), it does channel error handling.
 //
@@ -49,7 +59,7 @@ type channelManager struct {
 	closed bool
 }
 
-func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
+func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) ChannelManager {
 	return &channelManager{
 		log:         log,
 		metr:        metr,
@@ -57,6 +67,10 @@ func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider Channe
 		rollupCfg:   rollupCfg,
 		txChannels:  make(map[string]*channel),
 	}
+}
+
+func (s *channelManager) ConfigProvider() ChannelConfigProvider {
+	return s.cfgProvider
 }
 
 // Clear clears the entire state of the channel manager.
@@ -76,7 +90,7 @@ func (s *channelManager) Clear(l1OriginLastClosedChannel eth.BlockID) {
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
 // in the failed transaction.
-func (s *channelManager) TxFailed(_id txID) {
+func (s *channelManager) TxFailed(_id TxID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := _id.String()
@@ -96,7 +110,7 @@ func (s *channelManager) TxFailed(_id txID) {
 // a channel have been marked as confirmed on L1 the channel may be invalid & need to be
 // resubmitted.
 // This function may reset the pending channel if the pending channel has timed out.
-func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
+func (s *channelManager) TxConfirmed(_id TxID, inclusionBlock eth.BlockID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := _id.String()
@@ -134,10 +148,10 @@ func (s *channelManager) removePendingChannel(channel *channel) {
 }
 
 // nextTxData pops off s.datas & handles updating the internal state
-func (s *channelManager) nextTxData(channel *channel) (txData, error) {
+func (s *channelManager) nextTxData(channel *channel) (TxData, error) {
 	if channel == nil || !channel.HasTxData() {
 		s.log.Trace("no next tx data")
-		return txData{}, io.EOF // TODO: not enough data error instead
+		return TxData{}, io.EOF // TODO: not enough data error instead
 	}
 	tx := channel.NextTxData()
 	s.txChannels[tx.ID().String()] = channel
@@ -149,7 +163,7 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // If the pending channel is
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
-func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
+func (s *channelManager) TxData(l1Head eth.BlockID) (TxData, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var firstWithTxData *channel
@@ -172,15 +186,15 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 
 	// If we have no saved blocks, we will not be able to create valid frames
 	if len(s.blocks) == 0 {
-		return txData{}, io.EOF
+		return TxData{}, io.EOF
 	}
 
 	if err := s.ensureChannelWithSpace(l1Head); err != nil {
-		return txData{}, err
+		return TxData{}, err
 	}
 
 	if err := s.processBlocks(); err != nil {
-		return txData{}, err
+		return TxData{}, err
 	}
 
 	// Register current L1 head only after all pending blocks have been
@@ -189,14 +203,14 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	s.registerL1Block(l1Head)
 
 	if err := s.outputFrames(); err != nil {
-		return txData{}, err
+		return TxData{}, err
 	}
 
 	return s.nextTxData(s.currentChannel)
 }
 
 // ensureChannelWithSpace ensures currentChannel is populated with a channel that has
-// space for more data (i.e. channel.IsFull returns false). If currentChannel is nil
+// space for more Data (i.e. channel.IsFull returns false). If currentChannel is nil
 // or full, a new channel is created.
 func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	if s.currentChannel != nil && !s.currentChannel.IsFull() {

@@ -331,14 +331,14 @@ func TestChannelBuilder_NextFrame(t *testing.T) {
 	require.NoError(t, err)
 
 	// Push one frame into to the channel builder
-	expectedTx := txID{frameID{chID: co.ID(), frameNumber: fn}}
+	expectedTx := txID{FrameID{ChID: co.ID(), FrameNumber: fn}}
 	expectedBytes := buf.Bytes()
-	frameData := frameData{
-		id: frameID{
-			chID:        co.ID(),
-			frameNumber: fn,
+	frameData := FrameData{
+		ID: FrameID{
+			ChID:        co.ID(),
+			FrameNumber: fn,
 		},
-		data: expectedBytes,
+		Data: expectedBytes,
 	}
 	cb.PushFrames(frameData)
 
@@ -347,8 +347,8 @@ func TestChannelBuilder_NextFrame(t *testing.T) {
 
 	// We should be able to increment to the next frame
 	constructedFrame := cb.NextFrame()
-	require.Equal(t, expectedTx[0], constructedFrame.id)
-	require.Equal(t, expectedBytes, constructedFrame.data)
+	require.Equal(t, expectedTx[0], constructedFrame.ID)
+	require.Equal(t, expectedBytes, constructedFrame.Data)
 	require.Equal(t, 0, cb.PendingFrames())
 
 	// The next call should panic since the length of frames is 0
@@ -378,12 +378,12 @@ func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint) {
 	// The frame push should panic since we constructed a new channel out
 	// so the channel out id won't match
 	require.PanicsWithValue(t, "wrong channel", func() {
-		frame := frameData{
-			id: frameID{
-				chID:        co.ID(),
-				frameNumber: fn,
+		frame := FrameData{
+			ID: FrameID{
+				ChID:        co.ID(),
+				FrameNumber: fn,
 			},
-			data: buf.Bytes(),
+			Data: buf.Bytes(),
 		}
 		cb.PushFrames(frame)
 	})
@@ -427,7 +427,7 @@ func TestChannelBuilder_OutputFrames(t *testing.T) {
 	// There should be many frames in the channel builder now
 	require.Greater(t, cb.PendingFrames(), 1)
 	for _, frame := range cb.frames {
-		require.Len(t, frame.data, int(channelConfig.MaxFrameSize))
+		require.Len(t, frame.Data, int(channelConfig.MaxFrameSize))
 	}
 }
 
@@ -493,9 +493,9 @@ func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.Compression
 	// There should be several frames in the channel builder now
 	require.Greater(t, cb.PendingFrames(), 1)
 	for i := 0; i < cb.numFrames-1; i++ {
-		require.Len(t, cb.frames[i].data, int(channelConfig.MaxFrameSize))
+		require.Len(t, cb.frames[i].Data, int(channelConfig.MaxFrameSize))
 	}
-	require.LessOrEqual(t, len(cb.frames[len(cb.frames)-1].data), int(channelConfig.MaxFrameSize))
+	require.LessOrEqual(t, len(cb.frames[len(cb.frames)-1].Data), int(channelConfig.MaxFrameSize))
 }
 
 // ChannelBuilder_MaxRLPBytesPerChannel tests the [ChannelBuilder.OutputFrames]
@@ -627,7 +627,7 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 
 	require.True(cb.HasFrame())
 	f := cb.NextFrame()
-	require.Less(len(f.data), int(cfg.MaxFrameSize)) // would fail without fix, full frame
+	require.Less(len(f.Data), int(cfg.MaxFrameSize)) // would fail without fix, full frame
 
 	require.False(cb.HasFrame(), "no leftover frame expected") // would fail without fix
 }
@@ -934,7 +934,7 @@ func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 	var flen int
 	for cb.HasFrame() {
 		f := cb.NextFrame()
-		flen += len(f.data)
+		flen += len(f.Data)
 	}
 
 	require.Equal(cb.OutputBytes(), flen)

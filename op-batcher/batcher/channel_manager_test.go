@@ -29,6 +29,10 @@ func channelManagerTestConfig(maxFrameSize uint64, batchType uint) ChannelConfig
 	return cfg
 }
 
+func newChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
+	return NewChannelManager(log, metr, cfgProvider, rollupCfg).(*channelManager)
+}
+
 func TestChannelManagerBatchType(t *testing.T) {
 	tests := []struct {
 		name string
@@ -62,7 +66,7 @@ func TestChannelManagerBatchType(t *testing.T) {
 // detects a reorg when it has cached L1 blocks.
 func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	log := testlog.Logger(t, log.LevelCrit)
-	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{BatchType: batchType}, &rollup.Config{})
+	m := newChannelManager(log, metrics.NoopMetrics, ChannelConfig{BatchType: batchType}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
 	a := types.NewBlock(&types.Header{
@@ -124,7 +128,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	// clearing confirmed transactions, and resetting the pendingChannels map
 	cfg.ChannelTimeout = 10
 	cfg.InitRatioCompressor(1, derive.Zlib)
-	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+	m := newChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 
 	// Channel Manager state should be empty by default
 	require.Empty(m.blocks)
@@ -346,7 +350,7 @@ func TestChannelManager_Close_PartiallyPendingChannel(t *testing.T) {
 		TargetNumFrames: 100,
 	}
 	cfg.InitNoneCompressor()
-	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+	m := newChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 
 	numTx := 3 // Adjust number of txs to make 2 frames
@@ -406,7 +410,7 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 	err := m.AddL2Block(a)
 	require.NoError(err, "Failed to add L2 block")
 
-	drainTxData := func() (txdatas []txData) {
+	drainTxData := func() (txdatas []TxData) {
 		for {
 			txdata, err := m.TxData(eth.BlockID{})
 			if err == io.EOF {
@@ -471,7 +475,7 @@ func TestChannelManager_ChannelCreation(t *testing.T) {
 	} {
 		test := tt
 		t.Run(test.name, func(t *testing.T) {
-			m := NewChannelManager(l, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+			m := newChannelManager(l, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 
 			m.l1OriginLastClosedChannel = test.safeL1Block
 			require.Nil(t, m.currentChannel)
