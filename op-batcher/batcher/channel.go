@@ -62,11 +62,23 @@ type channel struct {
 }
 
 func NewChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (Channel, error) {
-	return newChannel(log, metr, cfg, rollupCfg, latestL1OriginBlockNum)
+	return NewChannelWithChannelOut(log, metr, cfg, rollupCfg, latestL1OriginBlockNum, nil)
 }
 
-func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*channel, error) {
-	cb, err := NewChannelBuilder(cfg, rollupCfg, latestL1OriginBlockNum)
+func NewChannelWithChannelOut(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64, channelOut derive.ChannelOut) (Channel, error) {
+	return newChannel(log, metr, cfg, rollupCfg, latestL1OriginBlockNum, channelOut)
+}
+
+func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64, channelOut derive.ChannelOut) (*channel, error) {
+	if channelOut == nil {
+		var err error
+		channelOut, err = NewChannelOut(cfg, rollupCfg)
+		if err != nil {
+			return nil, fmt.Errorf("creating channel out: %w", err)
+		}
+	}
+
+	cb, err := NewChannelBuilder(cfg, rollupCfg, latestL1OriginBlockNum, channelOut)
 	if err != nil {
 		return nil, fmt.Errorf("creating new channel: %w", err)
 	}

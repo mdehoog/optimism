@@ -127,7 +127,7 @@ func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
 		CompressorConfig: compressor.Config{
 			CompressionAlgo: derive.Zlib,
 		},
-	}, &rollup.Config{}, latestL1BlockOrigin)
+	}, &rollup.Config{}, latestL1BlockOrigin, nil)
 	require.NoError(err)
 	chID := ch.ID()
 
@@ -168,7 +168,7 @@ func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
 		CompressorConfig: compressor.Config{
 			CompressionAlgo: derive.Zlib,
 		},
-	}, &rollup.Config{}, latestL1BlockOrigin)
+	}, &rollup.Config{}, latestL1BlockOrigin, nil)
 	require.NoError(err)
 	chID := ch.ID()
 
