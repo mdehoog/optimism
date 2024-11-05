@@ -100,8 +100,13 @@ func (st *StatusTracker) OnEvent(ev event.Event) bool {
 			}
 			// New L1 block is not the same as the current head or a single step linear extension.
 			// This could either be a long L1 extension, or a reorg, or we simply missed a head update.
-			st.log.Warn("L1 head signal indicates a possible L1 re-org",
-				"old_l1_head", st.data.HeadL1, "new_l1_head_parent", x.L1Unsafe.ParentHash, "new_l1_head", x.L1Unsafe)
+			if st.data.HeadL1.Number+1 != x.L1Unsafe.Number {
+				st.log.Debug("L1 head signal indicates missed L1 block(s)",
+					"old_l1_head", st.data.HeadL1, "new_l1_head_parent", x.L1Unsafe.ParentHash, "new_l1_head", x.L1Unsafe)
+			} else {
+				st.log.Warn("L1 head signal indicates a possible L1 re-org",
+					"old_l1_head", st.data.HeadL1, "new_l1_head_parent", x.L1Unsafe.ParentHash, "new_l1_head", x.L1Unsafe)
+			}
 		}
 		st.data.HeadL1 = x.L1Unsafe
 	case L1SafeEvent:
